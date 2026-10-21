@@ -1,0 +1,31 @@
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+!apps/mobile/.env.example
+
+# Expo / React Native
+.expo/
+.expo-shared/
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+web-build/
+expo-env.d.ts
+
+# Local uploads (development storage provider)
+apps/api/uploads/
+uploads/
+
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
