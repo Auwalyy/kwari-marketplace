@@ -155,7 +155,7 @@ export async function postMessage(
   return dtoForCustomer;
 }
 
-export async function toMessageDtos(messages: any[], viewerSide: Side): Promise<MessageDto[]> {
+export async function toMessageDtos(messages: any[], _viewerSide: Side): Promise<MessageDto[]> {
   const senders = await User.find({ _id: { $in: messages.map((m) => m.senderId).filter(Boolean) } }).select('fullName').lean();
   const products = await Product.find({ _id: { $in: messages.map((m) => m.productId).filter(Boolean) } }).select('name images retailPriceKobo unit').lean();
   const orders = await Order.find({ _id: { $in: messages.map((m) => m.orderId).filter(Boolean) } }).select('reference status').lean();

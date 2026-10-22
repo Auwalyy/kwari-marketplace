@@ -6,6 +6,9 @@ const bool = (def: boolean) =>
     .optional()
     .transform((v) => (v === undefined || v === '' ? def : v === 'true' || v === '1'));
 
+/** Numeric env var where an empty string means "not set". */
+const num = <T extends z.ZodType>(inner: T) => z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
+
 const csv = z
   .string()
   .optional()
@@ -41,7 +44,7 @@ function durationSeconds(def: string) {
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().default(4000),
+  PORT: num(z.coerce.number().int().default(4000)),
   API_BASE_URL: z.string().default('http://localhost:4000'),
   MONGODB_URI: emptyToUndefined,
   /** Set to false for standalone MongoDB servers that do not support multi-document transactions. */
@@ -67,12 +70,12 @@ const schema = z.object({
   IMAGE_EMBEDDING_PROVIDER: z.enum(['none', 'jina', 'cohere', 'local-baseline']).default('none'),
   IMAGE_EMBEDDING_API_KEY: emptyToUndefined,
   IMAGE_EMBEDDING_MODEL: emptyToUndefined,
-  IMAGE_EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().optional(),
-  IMAGE_EMBEDDING_TIMEOUT_MS: z.coerce.number().int().default(20000),
+  IMAGE_EMBEDDING_DIMENSIONS: num(z.coerce.number().int().positive().optional()),
+  IMAGE_EMBEDDING_TIMEOUT_MS: num(z.coerce.number().int().default(20000)),
   VECTOR_SEARCH_PROVIDER: z.enum(['atlas', 'exhaustive']).default('exhaustive'),
   VECTOR_SEARCH_INDEX_NAME: z.string().default('product_image_embeddings'),
   /** Upper bound for the exhaustive (non-Atlas) cosine scan. */
-  VECTOR_SEARCH_EXHAUSTIVE_LIMIT: z.coerce.number().int().default(20000),
+  VECTOR_SEARCH_EXHAUSTIVE_LIMIT: num(z.coerce.number().int().default(20000)),
   /** Overrides the provider's default minimum similarity for showing a visual match. */
   VISUAL_SEARCH_MIN_SIMILARITY: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.number().min(0).max(1).optional()),
 
@@ -85,7 +88,7 @@ const schema = z.object({
 
   VERIFICATION_EMAIL_PROVIDER: z.enum(['console', 'smtp', 'none']).default('console'),
   SMTP_HOST: emptyToUndefined,
-  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_PORT: num(z.coerce.number().int().default(587)),
   SMTP_USER: emptyToUndefined,
   SMTP_PASSWORD: emptyToUndefined,
   SMTP_FROM: z.string().default('Kantin Kwari Digital Market <no-reply@example.com>'),

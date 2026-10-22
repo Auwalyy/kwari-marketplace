@@ -13,7 +13,6 @@ export function notFoundHandler(req: Request, res: Response) {
 }
 
 /** Converts every error into the standard envelope. Internal details and stack traces are never sent. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   let status = 500;
   let code = 'INTERNAL_ERROR';

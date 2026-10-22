@@ -2,10 +2,10 @@
   "name": "kantin-kwari-digital-market",
   "private": true,
   "version": "0.1.0",
-  "description": "Kantin Kwari Digital Market — mobile marketplace for the Kantin Kwari textile market, Kano.",
+  "description": "Kantin Kwari Digital Market \u00e2\u20ac\u201d mobile marketplace for the Kantin Kwari textile market, Kano.",
   "workspaces": [
     "packages/*",
-    "apps/api"
+    "apps/*"
   ],
   "scripts": {
     "build:shared": "npm run build -w @kkdm/shared",
@@ -17,7 +17,8 @@
     "lint": "npm run lint -w @kkdm/api && npm run lint -w @kkdm/mobile",
     "seed": "npm run seed -w @kkdm/api",
     "db:indexes": "npm run db:indexes -w @kkdm/api",
-    "postinstall": "npm run build -w @kkdm/shared"
+    "postinstall": "npm run build -w @kkdm/shared",
+    "dev:db": "node scripts/dev-mongo.mjs"
   },
   "engines": {
     "node": ">=22"

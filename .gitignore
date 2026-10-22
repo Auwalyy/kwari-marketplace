@@ -29,3 +29,4 @@ uploads/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+.dev-mongo/

@@ -156,7 +156,7 @@ searchRouter.get('/discovery', optionalAuth, async (req, res) => {
       { $limit: 8 },
     ]),
   ]);
-  await recordImpressions([...featuredPromos.filter((p) => featuredShops.some((s) => String(s._id) === String(p.shopId))).map((p) => p._id), ...featuredProductPromos.filter((p) => featuredProducts.length).map((p) => p._id)]);
+  await recordImpressions([...featuredPromos.filter((p) => featuredShops.some((s) => String(s._id) === String(p.shopId))).map((p) => p._id), ...featuredProductPromos.filter((p) => featuredProducts.some((fp) => String(fp._id) === String(p.productId))).map((p) => p._id)]);
   const cats = await Category.find({ _id: { $in: popularCategories.map((c) => c._id) } }).lean();
 
   let recentlyViewed: any[] = [];

@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { objectId, promotionSchema } from '@kkdm/shared';
 import { Promotion, SubscriptionEntitlement } from './promotion.models';
 import { recordClick } from './promotion.service';
