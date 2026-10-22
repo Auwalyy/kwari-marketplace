@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import type { ProductDto, ProductSummaryDto, QuotationDto } from '@kkdm/shared';
 import { Body, Button, Card, Chip, Heading, Notice, QuantityStepper, Screen, SectionHeader, TextField, toast } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 import { formatNaira, nairaInputToKobo, unitLabel } from '@/lib/format';
 
 interface Line {
@@ -19,15 +20,11 @@ interface Line {
 /** Request a (wholesale) quotation: quantities and optional target prices; the seller replies with an offer. */
 export default function NewQuotation() {
   const { shopId, productId } = useLocalSearchParams<{ shopId: string; productId?: string }>();
-  const [lines, setLines] = useState<Line[]>([]);
   const [message, setMessage] = useState('');
   const [picking, setPicking] = useState(false);
   const initial = useQuery({ queryKey: ['product', productId], queryFn: () => api.get<ProductDto>(`/products/${productId}`), enabled: !!productId });
+  const [lines, setLines] = useDerivedState<ProductDto, Line[]>(initial.data, (p) => [{ product: p, quantity: p.wholesaleMinQuantity ?? p.minOrderQuantity ?? 1, target: '' }], []);
   const catalogue = useQuery({ queryKey: ['shop-products', shopId, 'quote'], queryFn: () => api.page<ProductSummaryDto>('/search/products', { shopId, limit: 50, sort: 'newest' }), enabled: picking });
-
-  useEffect(() => {
-    if (initial.data && !lines.length) setLines([{ product: initial.data, quantity: initial.data.wholesaleMinQuantity ?? initial.data.minOrderQuantity ?? 1, target: '' }]);
-  }, [initial.data, lines.length]);
 
   const submit = useMutation({
     mutationFn: () =>

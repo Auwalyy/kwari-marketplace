@@ -1,4 +1,4 @@
-import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
+import { AxiosError, create as createAxios, type AxiosRequestConfig } from 'axios';
 import type { ApiErrorBody, AuthTokens, PageMeta } from '@kkdm/shared';
 import { API_V1 } from './config';
 
@@ -30,7 +30,7 @@ export function configureApiAuth(h: TokenHooks) {
   hooks = h;
 }
 
-export const http = axios.create({ baseURL: API_V1, timeout: 30_000 });
+export const http = createAxios({ baseURL: API_V1, timeout: 30_000 });
 
 http.interceptors.request.use((config) => {
   const token = hooks.getAccessToken();
@@ -124,4 +124,4 @@ export const api = {
 };
 
 /** Raw axios auth calls that must not trigger the refresh interceptor loop. */
-export const authHttp = axios.create({ baseURL: API_V1, timeout: 20_000 });
+export const authHttp = createAxios({ baseURL: API_V1, timeout: 20_000 });

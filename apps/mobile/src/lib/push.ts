@@ -1,5 +1,6 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from './api';
 import { EAS_PROJECT_ID } from './config';
@@ -18,7 +19,7 @@ export async function registerForPush(): Promise<{ ok: boolean; reason?: string 
   if (!Device.isDevice) return { ok: false, reason: 'Push notifications need a physical device.' };
   if (!EAS_PROJECT_ID) return { ok: false, reason: 'Push is not configured for this build (missing EAS project id).' };
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', { name: 'Default', importance: Notifications.AndroidImportance.DEFAULT });
+    await Notifications.setNotificationChannelAsync('default', { name: 'Default', importance: AndroidImportance.DEFAULT });
   }
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') status = (await Notifications.requestPermissionsAsync()).status;

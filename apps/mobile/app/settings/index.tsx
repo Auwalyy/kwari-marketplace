@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -8,6 +8,7 @@ import { passwordSchema, type AuthTokens, type MeDto, type SessionDto } from '@k
 import { Avatar, Badge, Button, Card, Divider, Notice, Screen, SectionHeader, TextField, pickImages, toast, useConfirm } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/store/auth';
 
@@ -17,12 +18,9 @@ export default function Settings() {
   const logout = useAuth((s) => s.logout);
   const confirm = useConfirm();
   const qc = useQueryClient();
-  const [profile, setProfile] = useState({ fullName: '', email: '', phone: '' });
+  const [profile, setProfile] = useDerivedState(user, (u) => ({ fullName: u.fullName, email: u.email ?? '', phone: u.phone ?? '' }), { fullName: '', email: '', phone: '' });
   const [pw, setPw] = useState({ current: '', next: '' });
   const [deletePw, setDeletePw] = useState('');
-  useEffect(() => {
-    if (user) setProfile({ fullName: user.fullName, email: user.email ?? '', phone: user.phone ?? '' });
-  }, [user]);
 
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: () => api.get<SessionDto[]>('/auth/sessions') });
   const setUser = (me: MeDto) => useAuth.setState({ user: me });

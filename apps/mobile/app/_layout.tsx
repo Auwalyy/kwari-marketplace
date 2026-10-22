@@ -1,6 +1,6 @@
 import '../global.css';
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -9,7 +9,6 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner-native';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
 import { queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/store/auth';
 import { ConfirmProvider } from '@/components/ui';

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SHOP_PERMISSIONS, SHOP_PERMISSION_LABELS, type ShopPermission } from '@kkdm/shared';
 import { Button, ErrorState, Heading, LoadingView, Notice, Screen, SwitchRow, TextField, toast } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 
 interface Worker { membershipId: string; fullName: string; title?: string; role: string; permissions: ShopPermission[] }
 
@@ -13,14 +13,9 @@ export default function WorkerPermissions() {
   const qc = useQueryClient();
   const workers = useQuery({ queryKey: ['workers', shopId], queryFn: () => api.get<Worker[]>(`/shops/${shopId}/workers`) });
   const w = workers.data?.find((x) => x.membershipId === membershipId);
-  const [perms, setPerms] = useState<ShopPermission[]>([]);
-  const [title, setTitle] = useState('');
-  useEffect(() => {
-    if (w) {
-      setPerms(w.permissions);
-      setTitle(w.title ?? '');
-    }
-  }, [w]);
+  const [perms, setPerms] = useDerivedState<Worker, ShopPermission[]>(w, (x) => x.permissions, []);
+  const [title, setTitle] = useDerivedState(w, (x) => x.title ?? '', '');
+
   const save = useMutation({
     mutationFn: () => api.patch(`/shops/${shopId}/workers/${membershipId}`, { permissions: perms, title }),
     onSuccess: () => {

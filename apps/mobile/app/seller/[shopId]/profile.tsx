@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -8,6 +7,7 @@ import { MEASUREMENT_UNITS, UNIT_LABELS, type CategoryDto, type MeasurementUnit,
 import { Button, ChoiceChips, ErrorState, LoadingView, Screen, SectionHeader, SwitchRow, TextField, pickImages, toast } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 type Hours = { day: number; open: string; close: string; closed: boolean };
@@ -18,15 +18,16 @@ export default function ShopProfile() {
   const qc = useQueryClient();
   const shop = useQuery({ queryKey: ['shop', shopId], queryFn: () => api.get<ShopDto>(`/shops/${shopId}`) });
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<CategoryDto[]>('/categories') });
-  const [f, setF] = useState({ name: '', description: '', locationDescription: '', contactPhone: '', whatsappPhone: '', contactEmail: '', categoryIds: [] as string[], wholesaleAvailable: false, enabledUnits: [] as MeasurementUnit[], chat: true, phone: false, whatsapp: false });
-  const [hours, setHours] = useState<Hours[]>([]);
-
-  useEffect(() => {
-    const s = shop.data;
-    if (!s) return;
-    setF({ name: s.name, description: s.description ?? '', locationDescription: s.locationDescription ?? '', contactPhone: s.contactPhone ?? '', whatsappPhone: s.whatsappPhone ?? '', contactEmail: s.contactEmail ?? '', categoryIds: s.categoryIds, wholesaleAvailable: s.wholesaleAvailable, enabledUnits: s.enabledUnits, ...s.contactPreferences });
-    setHours(s.businessHours.length ? s.businessHours : [1, 2, 3, 4, 5, 6].map((day) => ({ day, open: '08:00', close: '18:00', closed: false })).concat([{ day: 0, open: '08:00', close: '18:00', closed: true }]));
-  }, [shop.data]);
+  const [f, setF] = useDerivedState(
+    shop.data,
+    (s) => ({ name: s.name, description: s.description ?? '', locationDescription: s.locationDescription ?? '', contactPhone: s.contactPhone ?? '', whatsappPhone: s.whatsappPhone ?? '', contactEmail: s.contactEmail ?? '', categoryIds: s.categoryIds, wholesaleAvailable: s.wholesaleAvailable, enabledUnits: s.enabledUnits, ...s.contactPreferences }),
+    { name: '', description: '', locationDescription: '', contactPhone: '', whatsappPhone: '', contactEmail: '', categoryIds: [] as string[], wholesaleAvailable: false, enabledUnits: [] as MeasurementUnit[], chat: true, phone: false, whatsapp: false },
+  );
+  const [hours, setHours] = useDerivedState<ShopDto, Hours[]>(
+    shop.data,
+    (s) => (s.businessHours.length ? s.businessHours : [1, 2, 3, 4, 5, 6].map((day) => ({ day, open: '08:00', close: '18:00', closed: false })).concat([{ day: 0, open: '08:00', close: '18:00', closed: true }])),
+    [],
+  );
 
   const done = (s: ShopDto) => {
     qc.setQueryData(['shop', shopId], (old: object | undefined) => ({ ...old, ...s }));

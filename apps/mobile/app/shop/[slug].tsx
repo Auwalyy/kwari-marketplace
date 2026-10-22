@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';

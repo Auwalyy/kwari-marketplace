@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { HouseDto } from '@kkdm/shared';
 import { Badge, Button, Card, Divider, ErrorState, LoadingView, Notice, Screen, SectionHeader, TextField, toast, useConfirm } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 
 interface Staff { id: string; userId: string; fullName: string; role: 'head' | 'assistant' }
 type MyHouse = HouseDto & { role: string; allowAssistants: boolean };
@@ -17,12 +18,13 @@ export default function EditHouse() {
   const house = useQuery({ queryKey: ['house', houseId], queryFn: () => api.get<HouseDto>(`/houses/${houseId}`) });
   const mine = useQuery({ queryKey: ['houses', 'mine'], queryFn: () => api.get<MyHouse[]>('/houses/mine/list') });
   const staff = useQuery({ queryKey: ['house-staff', houseId], queryFn: () => api.get<Staff[]>(`/houses/${houseId}/staff`) });
-  const [f, setF] = useState({ name: '', description: '', addressDescription: '', contactPhone: '', contactEmail: '', lat: '', lng: '' });
+  const [f, setF] = useDerivedState(
+    house.data,
+    (h) => ({ name: h.name, description: h.description ?? '', addressDescription: h.addressDescription, contactPhone: h.contactPhone ?? '', contactEmail: h.contactEmail ?? '', lat: h.location ? String(h.location.lat) : '', lng: h.location ? String(h.location.lng) : '' }),
+    { name: '', description: '', addressDescription: '', contactPhone: '', contactEmail: '', lat: '', lng: '' },
+  );
   const [assistant, setAssistant] = useState('');
-  useEffect(() => {
-    const h = house.data;
-    if (h) setF({ name: h.name, description: h.description ?? '', addressDescription: h.addressDescription, contactPhone: h.contactPhone ?? '', contactEmail: h.contactEmail ?? '', lat: h.location ? String(h.location.lat) : '', lng: h.location ? String(h.location.lng) : '' });
-  }, [house.data]);
+
   const save = useMutation({
     mutationFn: () =>
       api.patch(`/houses/${houseId}`, {

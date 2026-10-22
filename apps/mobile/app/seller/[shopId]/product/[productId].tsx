@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -8,6 +8,7 @@ import { UNIT_LABELS, productCreateSchema, type CategoryDto, type MeasurementUni
 import { Badge, Body, Button, Card, ChoiceChips, ErrorState, IconButton, ImagePickerRow, LoadingView, Notice, Screen, SectionHeader, SwitchRow, TextField, pickImages, toast, useConfirm } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 import { koboToNairaInput, nairaInputToKobo } from '@/lib/format';
 
 interface VariantForm {
@@ -30,17 +31,14 @@ export default function ProductEditor() {
   const shop = useQuery({ queryKey: ['shop', shopId], queryFn: () => api.get<ShopDto>(`/shops/${shopId}`) });
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<CategoryDto[]>('/categories') });
   const product = useQuery({ queryKey: ['seller-product', productId], queryFn: () => api.get<ProductDto & { moderationStatus: string; moderationReason?: string }>(`/shops/${shopId}/products/${productId}`), enabled: !isNew });
-  const [f, setF] = useState({ name: '', description: '', categoryId: '', subcategory: '', retail: '', wholesale: '', wholesaleMin: '', minOrder: '1', unit: 'yard' as MeasurementUnit, stock: '0', lowStock: '5', trackInventory: true, material: '', brand: '', colours: '', patterns: '', keywords: '' });
-  const [variants, setVariants] = useState<VariantForm[]>([]);
+  const [f, setF] = useDerivedState(
+    product.data,
+    (p) => ({ name: p.name, description: p.description ?? '', categoryId: p.categoryId, subcategory: p.subcategory ?? '', retail: koboToNairaInput(p.retailPriceKobo), wholesale: koboToNairaInput(p.wholesalePriceKobo), wholesaleMin: p.wholesaleMinQuantity ? String(p.wholesaleMinQuantity) : '', minOrder: String(p.minOrderQuantity), unit: p.unit, stock: String(p.stockQuantity), lowStock: String(p.lowStockThreshold), trackInventory: p.trackInventory, material: p.material ?? '', brand: p.brand ?? '', colours: p.colours.join(', '), patterns: p.patterns.join(', '), keywords: p.keywords.join(', ') }),
+    { name: '', description: '', categoryId: '', subcategory: '', retail: '', wholesale: '', wholesaleMin: '', minOrder: '1', unit: 'yard' as MeasurementUnit, stock: '0', lowStock: '5', trackInventory: true, material: '', brand: '', colours: '', patterns: '', keywords: '' },
+  );
+  const [variants, setVariants] = useDerivedState<ProductDto, VariantForm[]>(product.data, (p) => p.variants.map((v) => ({ id: v.id, label: v.label, colour: v.colour ?? '', priceOverride: koboToNairaInput(v.priceOverrideKobo), stock: String(v.stockQuantity), active: v.active })), []);
   const [newImages, setNewImages] = useState<{ key: string; uri: string; name: string; type: string }[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    const p = product.data;
-    if (!p) return;
-    setF({ name: p.name, description: p.description ?? '', categoryId: p.categoryId, subcategory: p.subcategory ?? '', retail: koboToNairaInput(p.retailPriceKobo), wholesale: koboToNairaInput(p.wholesalePriceKobo), wholesaleMin: p.wholesaleMinQuantity ? String(p.wholesaleMinQuantity) : '', minOrder: String(p.minOrderQuantity), unit: p.unit, stock: String(p.stockQuantity), lowStock: String(p.lowStockThreshold), trackInventory: p.trackInventory, material: p.material ?? '', brand: p.brand ?? '', colours: p.colours.join(', '), patterns: p.patterns.join(', '), keywords: p.keywords.join(', ') });
-    setVariants(p.variants.map((v) => ({ id: v.id, label: v.label, colour: v.colour ?? '', priceOverride: koboToNairaInput(v.priceOverrideKobo), stock: String(v.stockQuantity), active: v.active })));
-  }, [product.data]);
 
   const list = (s: string) => s.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
   const buildBody = () => ({

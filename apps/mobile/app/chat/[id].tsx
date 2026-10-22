@@ -55,7 +55,10 @@ export default function Conversation() {
     void api.post(`/conversations/${id}/read`).then(() => qc.invalidateQueries({ queryKey: ['conversations'] }));
   }, [id, merge, qc]);
 
+  // Subscribes to the socket room and refetches after reconnects (an external system), so state updates
+  // happen in async callbacks rather than synchronously during render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadLatest().then(() => undefined, () => undefined);
     void joinConversation(id).then((r) => r.ok && setOtherOnline(!!r.data?.otherSideOnline));
     // After a reconnect, fetch anything missed while offline (sockets are not the source of truth).

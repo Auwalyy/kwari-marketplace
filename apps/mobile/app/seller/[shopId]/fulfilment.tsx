@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +6,7 @@ import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type PaymentMethod, type ShopDt
 import { Button, Card, ChoiceChips, ErrorState, IconButton, LoadingView, Notice, Screen, SectionHeader, SwitchRow, TextField, toast } from '@/components/ui';
 import { useAppConfig } from '@/hooks';
 import { api } from '@/lib/api';
+import { useDerivedState } from '@/hooks/useDerivedState';
 import { koboToNairaInput, nairaInputToKobo } from '@/lib/format';
 
 interface OptionForm {
@@ -24,23 +24,12 @@ export default function Fulfilment() {
   const qc = useQueryClient();
   const config = useAppConfig();
   const shop = useQuery({ queryKey: ['shop', shopId], queryFn: () => api.get<ShopDto>(`/shops/${shopId}`) });
-  const [pickup, setPickup] = useState(true);
-  const [pickupInstructions, setPickupInstructions] = useState('');
-  const [delivery, setDelivery] = useState(false);
-  const [options, setOptions] = useState<OptionForm[]>([]);
-  const [payments, setPayments] = useState<PaymentMethod[]>([]);
-  const [bank, setBank] = useState('');
-
-  useEffect(() => {
-    const s = shop.data;
-    if (!s) return;
-    setPickup(s.pickupAvailable);
-    setPickupInstructions(s.pickupInstructions ?? '');
-    setDelivery(s.deliveryAvailable);
-    setOptions(s.deliveryOptions.map((o) => ({ name: o.name, fee: koboToNairaInput(o.feeKobo), quoted: o.feeKobo == null, estimatedDays: o.estimatedDays ?? '', areas: o.areas.join(', '), active: o.active })));
-    setPayments(s.acceptedPaymentMethods);
-    setBank(s.bankTransferInstructions ?? '');
-  }, [shop.data]);
+  const [pickup, setPickup] = useDerivedState(shop.data, (s) => s.pickupAvailable, true);
+  const [pickupInstructions, setPickupInstructions] = useDerivedState(shop.data, (s) => s.pickupInstructions ?? '', '');
+  const [delivery, setDelivery] = useDerivedState(shop.data, (s) => s.deliveryAvailable, false);
+  const [options, setOptions] = useDerivedState<ShopDto, OptionForm[]>(shop.data, (s) => s.deliveryOptions.map((o) => ({ name: o.name, fee: koboToNairaInput(o.feeKobo), quoted: o.feeKobo == null, estimatedDays: o.estimatedDays ?? '', areas: o.areas.join(', '), active: o.active })), []);
+  const [payments, setPayments] = useDerivedState<ShopDto, PaymentMethod[]>(shop.data, (s) => s.acceptedPaymentMethods, []);
+  const [bank, setBank] = useDerivedState(shop.data, (s) => s.bankTransferInstructions ?? '', '');
 
   const save = useMutation({
     mutationFn: () =>

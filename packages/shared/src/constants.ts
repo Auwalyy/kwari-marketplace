@@ -292,6 +292,7 @@ export type PromotionType = (typeof PROMOTION_TYPES)[number];
 export const PROMOTION_STATUSES = ['pending', 'approved', 'rejected', 'active', 'ended', 'cancelled'] as const;
 
 export const SUBSCRIPTION_PLANS = ['free', 'standard', 'premium'] as const;
+export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 
 /** Socket.IO event names. Payload schemas are documented in docs/realtime-events.md. */
 export const SOCKET_EVENTS = {

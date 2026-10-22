@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,28 +27,24 @@ export default function Checkout() {
   const [idempotencyKey] = useState(uuid);
   const cart = useQuery({ queryKey: ['cart'], queryFn: () => api.get<CartDto>('/cart') });
   const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api.get<AddressDto[]>('/users/me/addresses') });
-  const [choices, setChoices] = useState<Record<string, ShopChoice>>({});
-  const [addressId, setAddressId] = useState<string | undefined>();
+  const [overrides, setOverrides] = useState<Record<string, ShopChoice>>({});
+  const [pickedAddressId, setAddressId] = useState<string | undefined>();
   const onlineAvailable = !!config.data?.features.onlinePayment.available;
 
-  useEffect(() => {
-    if (!cart.data) return;
-    setChoices((prev) => {
-      const next = { ...prev };
-      for (const g of cart.data.groups) {
-        if (next[g.shop.id]) continue;
-        const method: FulfilmentMethod = g.shop.pickupAvailable ? 'pickup' : 'delivery';
-        const payments = g.shop.acceptedPaymentMethods.filter((m) => (m !== 'online' || onlineAvailable) && (m !== 'cash_on_pickup' || method === 'pickup'));
-        next[g.shop.id] = { fulfilmentMethod: method, deliveryOptionId: method === 'delivery' ? g.shop.deliveryOptions[0]?.id : undefined, paymentMethod: payments[0], note: '' };
-      }
-      return next;
-    });
-  }, [cart.data, onlineAvailable]);
-  useEffect(() => {
-    if (!addressId && addresses.data?.length) setAddressId((addresses.data.find((a) => a.isDefault) ?? addresses.data[0]).id);
-  }, [addresses.data, addressId]);
+  // Sensible per-shop defaults, overridden by whatever the customer picks.
+  const choices = useMemo(() => {
+    const result: Record<string, ShopChoice> = {};
+    for (const g of cart.data?.groups ?? []) {
+      const method: FulfilmentMethod = g.shop.pickupAvailable ? 'pickup' : 'delivery';
+      const payments = g.shop.acceptedPaymentMethods.filter((m) => (m !== 'online' || onlineAvailable) && (m !== 'cash_on_pickup' || method === 'pickup'));
+      result[g.shop.id] = overrides[g.shop.id] ?? { fulfilmentMethod: method, deliveryOptionId: method === 'delivery' ? g.shop.deliveryOptions[0]?.id : undefined, paymentMethod: payments[0], note: '' };
+    }
+    return result;
+  }, [cart.data, onlineAvailable, overrides]);
+  const defaultAddress = addresses.data?.find((x) => x.isDefault) ?? addresses.data?.[0];
+  const addressId = pickedAddressId ?? defaultAddress?.id;
 
-  const set = (shopId: string, patch: Partial<ShopChoice>) => setChoices((c) => ({ ...c, [shopId]: { ...c[shopId], ...patch } }));
+  const set = (shopId: string, patch: Partial<ShopChoice>) => setOverrides((o) => ({ ...o, [shopId]: { ...choices[shopId], ...patch } }));
   const needsAddress = Object.values(choices).some((c) => c.fulfilmentMethod === 'delivery');
 
   const totals = useMemo(() => {
