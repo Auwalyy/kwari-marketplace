@@ -7,7 +7,7 @@
 | Node.js | 22 LTS or newer (tested on 26) | `node -v` |
 | npm | 10+ (tested on 11) | npm workspaces are used; no yarn/pnpm needed |
 | MongoDB | 7+ replica set, or MongoDB Atlas | Not needed locally: `npm run dev:db` starts a development replica set |
-| Expo tooling | via `npx` | Expo SDK 58 |
+| Expo tooling | via `npx` | Expo SDK 57 |
 | Android Studio (emulator) / Xcode (iOS simulator, macOS only) | optional | or use a physical phone |
 | EAS CLI | `npx eas-cli@latest` | for development / production builds |
 
