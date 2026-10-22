@@ -76,6 +76,9 @@ export function createApp() {
   );
 
   // Health endpoints are outside the rate limiter and versioned API.
+  app.get('/', (_req, res) => {
+    res.json({ name: 'Kantin Kwari API', status: 'ok', api: '/api/v1', docs: env.SWAGGER_ENABLED ? '/api/docs' : undefined });
+  });
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.round(process.uptime()) });
   });

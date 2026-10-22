@@ -13,9 +13,9 @@ import { logger } from '../config/logger';
 import '../app';
 import { User } from '../modules/users/user.model';
 import { hashPassword } from '../modules/auth/password';
-import { House, HouseMembership, HouseStaff, Market, MarketSection } from '../modules/markets/market.models';
+import { House, HouseMembership, HouseStaff, MarketSection } from '../modules/markets/market.models';
 import { Shop, ShopMembership } from '../modules/shops/shop.models';
-import { Category, InventoryMovement, Product } from '../modules/products/product.models';
+import { InventoryMovement, Product } from '../modules/products/product.models';
 import { processUploadedImage } from '../services/images';
 import { storage, storageKey } from '../services/storage';
 import { queueImageEmbedding } from '../modules/visual-search/embedding.service';
@@ -23,6 +23,7 @@ import { drainJobs } from '../jobs/queue';
 import { slugify } from '../utils/http';
 import { recountHouseShops } from '../modules/houses/house.service';
 import { recountShopProducts } from '../modules/shops/shop.service';
+import { ensureReferenceData } from './reference-data';
 
 const DEMO_PASSWORD = 'DemoPass123';
 
@@ -84,9 +85,7 @@ async function main() {
   }
 
   const admin = await user('Platform Admin', 'admin@demo.kantinkwari.test', { platformRoles: ['admin'] });
-  const market =
-    (await Market.findOne({ slug: 'kantin-kwari' })) ??
-    (await Market.create({ name: 'Kantin Kwari', slug: 'kantin-kwari', description: 'Kantin Kwari textile market, Kano — one of the largest textile markets in West Africa.', region: 'Kano', city: 'Kano', country: 'NG', usesSections: true, location: { lat: 12.0033, lng: 8.5167 }, createdBy: admin._id }));
+  const { market, categories } = await ensureReferenceData(admin._id);
   await user('Section Manager', 'manager@demo.kantinkwari.test', { platformRoles: ['market_manager'], managedMarketIds: [market._id] });
 
   const sections: Record<string, Types.ObjectId> = {};
@@ -95,21 +94,6 @@ async function main() {
     sections[code] = s._id;
   }
 
-  const categories: Record<string, Types.ObjectId> = {};
-  const catDefs = [
-    ['bazin', 'Bazin Riche & Damask', 'sparkles'],
-    ['ankara-wax', 'Ankara & Wax Prints', 'shirt'],
-    ['lace', 'Lace', 'flower'],
-    ['guinea-brocade', 'Guinea Brocade & Shadda', 'gem'],
-    ['atiku', 'Atiku & Senator', 'briefcase'],
-    ['aso-oke', 'Aso Oke', 'crown'],
-    ['plain', 'Plain & Shirting', 'layers'],
-    ['accessories', 'Gele, Caps & Accessories', 'tag'],
-  ];
-  for (const [i, [slug, name, iconName]] of catDefs.entries()) {
-    const c = (await Category.findOne({ slug })) ?? (await Category.create({ slug, name, iconName, sortOrder: i }));
-    categories[slug] = c._id;
-  }
 
   const head1 = await user('Alhaji Musa (House Head)', 'head1@demo.kantinkwari.test');
   const head2 = await user('Hajiya Binta (House Head)', 'head2@demo.kantinkwari.test');

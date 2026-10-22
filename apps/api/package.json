@@ -16,6 +16,7 @@
     "db:indexes": "tsx --env-file-if-exists=../../.env src/scripts/sync-indexes.ts",
     "embeddings:backfill": "tsx --env-file-if-exists=../../.env src/scripts/backfill-embeddings.ts",
     "admin:create": "tsx --env-file-if-exists=../../.env src/scripts/create-admin.ts",
+    "setup:reference": "tsx --env-file-if-exists=../../.env src/scripts/setup-reference-data.ts",
     "openapi:export": "tsx src/scripts/export-openapi.ts"
   },
   "dependencies": {

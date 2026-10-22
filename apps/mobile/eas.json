@@ -12,11 +12,11 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://api-staging.example.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://kwari-marketplace.onrender.com" }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_URL": "https://api.example.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://kwari-marketplace.onrender.com" }
     }
   },
   "submit": {
