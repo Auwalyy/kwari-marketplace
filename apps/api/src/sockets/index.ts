@@ -88,19 +88,10 @@ export function initSockets(httpServer: HttpServer) {
     }
   });
 
-  io.on('connection', async (socket) => {
+  io.on('connection', (socket) => {
     const data = socket.data as SocketData;
     const userId = data.auth.userId;
     socket.join(rooms.user(userId));
-    // Staff rooms receive shop-wide order / chat events for shops the user may act on.
-    const memberships = await ShopMembership.find({ userId, status: 'active' }).select('shopId role permissions').lean();
-    for (const m of memberships) {
-      const perms = m.permissions as string[];
-      if (m.role === 'owner' || perms.includes('chats.manage') || perms.includes('orders.manage') || perms.includes('quotations.manage')) {
-        socket.join(rooms.shopStaff(String(m.shopId)));
-      }
-    }
-
     socket.on(
       SOCKET_EVENTS.conversationJoin,
       handler(socket, conversationRef, async ({ conversationId }) => {
@@ -160,6 +151,21 @@ export function initSockets(httpServer: HttpServer) {
         socket.to(rooms.conversation(conversationId)).emit(SOCKET_EVENTS.conversationPresence, { conversationId, userId, side, online: false });
       }
     });
+
+    // Staff rooms receive shop-wide order / chat events for shops the user may act on.
+    // Handlers are registered above first so no early client event is lost while this query runs.
+    void ShopMembership.find({ userId, status: 'active' })
+      .select('shopId role permissions')
+      .lean()
+      .then((memberships) => {
+        for (const m of memberships) {
+          const perms = m.permissions as string[];
+          if (m.role === 'owner' || perms.includes('chats.manage') || perms.includes('orders.manage') || perms.includes('quotations.manage')) {
+            socket.join(rooms.shopStaff(String(m.shopId)));
+          }
+        }
+      })
+      .catch((err) => logger.error({ err }, 'Failed to join staff rooms'));
   });
 
   setRealtimeServer(io);

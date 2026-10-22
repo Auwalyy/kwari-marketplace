@@ -2,7 +2,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { app, api, auth, createActiveShop, createMarketFixture, createPublishedProduct, registerUser, useTestDatabase, type MarketFixture, type TestUser } from './helpers';
+import { app, api, auth, fabricImage, createActiveShop, createMarketFixture, createPublishedProduct, registerUser, useTestDatabase, type MarketFixture, type TestUser } from './helpers';
 import { initSockets } from '../src/sockets';
 import { setRealtimeServer } from '../src/services/realtime';
 import { Message } from '../src/modules/chats/chat.models';
@@ -57,7 +57,7 @@ beforeAll(async () => {
 afterAll(async () => {
   sockets.forEach((s) => s.disconnect());
   setRealtimeServer(null);
-  await new Promise((r) => server.close(r));
+  await new Promise<void>((r) => server.close(() => r()));
 });
 
 describe('real-time chat', () => {
@@ -68,7 +68,7 @@ describe('real-time chat', () => {
       new Promise((resolve, reject) => {
         const s = ioClient(url, { transports: ['websocket'], forceNew: true, reconnection: false });
         sockets.push(s);
-        s.on('connect', resolve);
+        s.on('connect', () => resolve(undefined));
         s.on('connect_error', reject);
       }),
     ).rejects.toThrow();
@@ -126,14 +126,11 @@ describe('real-time chat', () => {
   it('refuses to let outsiders join rooms or read history by id', async () => {
     const outsider = await registerUser('Outsider');
     const os = await connect(outsider);
-    console.log('connected outsider');
     const join = await emit(os, 'conversation:join', { conversationId });
     expect(join.ok).toBe(false);
     expect(join.error!.code).toBe('FORBIDDEN');
-    console.log('join ok');
     const send = await emit(os, 'message:send', { conversationId, clientMessageId: 'evil-0001', type: 'text', text: 'hi' });
     expect(send.ok).toBe(false);
-    console.log('send ok');
     expect((await api().get(`/api/v1/conversations/${conversationId}/messages`).set(auth(outsider))).status).toBe(403);
     // Typing without joining is rejected too.
     expect((await emit(os, 'conversation:typing', { conversationId, typing: true })).ok).toBe(false);
@@ -165,7 +162,6 @@ describe('real-time chat', () => {
   });
 
   it('serves chat images only to participants', async () => {
-    const { fabricImage } = await import('./helpers');
     const up = await api().post(`/api/v1/conversations/${conversationId}/images`).set(auth(customer)).field('clientMessageId', 'img-000001').attach('image', await fabricImage([[1, 2, 3], [200, 100, 50]]), 'photo.png');
     expect(up.status).toBe(201);
     const path = up.body.data.imageUrl as string;
