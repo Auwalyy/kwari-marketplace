@@ -253,9 +253,9 @@ async function main() {
   }
   const accounts = [...(LIVE ? [] : ['admin', 'manager']), 'head1', 'head2', 'owner1', 'owner2', 'owner3', 'owner4', 'worker', 'customer1', 'customer2'].map(demoEmail);
   logger.info(
-    { password: DEMO_PASSWORD, accounts, embeddingsProcessed: processed },
+    { database: mongoose.connection.name, password: DEMO_PASSWORD, accounts, embeddingsProcessed: processed },
     LIVE
-      ? 'Demo data added to the live database. New demo accounts use the password shown (it is not stored anywhere else); accounts that already existed keep their old password. Remove it all with: npm run demo:remove -- --confirm'
+      ? 'Demo data added in live mode (check "database" above is the one you meant). New demo accounts use the password shown (it is not stored anywhere else); accounts that already existed keep their old password. Remove it all with: npm run demo:remove -- --confirm'
       : 'Development seed complete — all demo accounts share the password shown',
   );
   await disconnectDatabase();
