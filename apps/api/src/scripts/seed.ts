@@ -1,8 +1,13 @@
 /**
- * DEVELOPMENT-ONLY seed data. Demo accounts are named "[DEMO] ..." and every sample shop and product
- * description states that it is development sample data. Product photos are real Sheradom bazin samples.
- * Refuses to run when NODE_ENV=production. Run: npm run seed  (add --reset to wipe the database first)
+ * Demo data: 4 shops with 10 real Sheradom bazin photos. Demo accounts are named "[DEMO] ..." and use
+ * @demo.kantinkwari.test emails; every demo shop and product says it is sample data.
+ *
+ *   npm run seed               development database (add --reset to wipe it first)
+ *   npm run seed -- --live     live database, until launch. Skips the demo admin and market manager, and
+ *                              gives the demo accounts a random password that is printed once.
+ *   npm run demo:remove        shows what would be removed; add -- --confirm to remove it
  */
+import crypto from 'node:crypto';
 import mongoose, { Types } from 'mongoose';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -24,8 +29,12 @@ import { slugify } from '../utils/http';
 import { recountHouseShops } from '../modules/houses/house.service';
 import { recountShopProducts } from '../modules/shops/shop.service';
 import { ensureReferenceData } from './reference-data';
+import { DEMO_EMAIL_DOMAIN, DEMO_HOUSE_MARKER, DEMO_SECTIONS } from './demo-data';
 
-const DEMO_PASSWORD = 'DemoPass123';
+const LIVE = process.argv.includes('--live');
+/** Fixed in development for convenience; random on a live server, where the source code is no secret. */
+const DEMO_PASSWORD = LIVE ? `Demo-${crypto.randomBytes(9).toString('base64url')}7a` : 'DemoPass123';
+const demoEmail = (name: string) => `${name}@${DEMO_EMAIL_DOMAIN}`;
 
 /** Real product photos used for the sample catalogue (apps/api/src/scripts/seed-assets/sheradom). */
 const ASSETS = path.resolve(__dirname, 'seed-assets', 'sheradom');
@@ -76,7 +85,8 @@ const CATALOGUE: Record<string, ProductSeed[]> = {
 };
 
 async function main() {
-  if (env.NODE_ENV === 'production') throw new Error('Refusing to seed demo data in production');
+  if (env.NODE_ENV === 'production' && !LIVE) throw new Error('Refusing to seed demo data in production (use --live to add removable demo shops)');
+  if (LIVE && process.argv.includes('--reset')) throw new Error('--reset is never allowed with --live');
   await connectDatabase();
   if (process.argv.includes('--reset')) {
     await mongoose.connection.dropDatabase();
@@ -84,19 +94,20 @@ async function main() {
     logger.warn('Database reset');
   }
 
-  const admin = await user('Platform Admin', 'admin@demo.kantinkwari.test', { platformRoles: ['admin'] });
-  const { market, categories } = await ensureReferenceData(admin._id);
-  await user('Section Manager', 'manager@demo.kantinkwari.test', { platformRoles: ['market_manager'], managedMarketIds: [market._id] });
+  // Staff accounts with platform-wide powers are never created on a live server.
+  const admin = LIVE ? null : await user('Platform Admin', demoEmail('admin'), { platformRoles: ['admin'] });
+  const { market, categories } = await ensureReferenceData(admin?._id);
+  if (!LIVE) await user('Section Manager', demoEmail('manager'), { platformRoles: ['market_manager'], managedMarketIds: [market._id] });
 
   const sections: Record<string, Types.ObjectId> = {};
-  for (const [code, name] of [['A', 'Section A — Main Gate'], ['B', 'Section B — Lace Row'], ['C', 'Section C — Brocade Lane']]) {
+  for (const [code, name] of DEMO_SECTIONS) {
     const s = (await MarketSection.findOne({ marketId: market._id, code })) ?? (await MarketSection.create({ marketId: market._id, code, name, locationDescription: name }));
     sections[code] = s._id;
   }
 
 
-  const head1 = await user('Alhaji Musa (House Head)', 'head1@demo.kantinkwari.test');
-  const head2 = await user('Hajiya Binta (House Head)', 'head2@demo.kantinkwari.test');
+  const head1 = await user('Alhaji Musa (House Head)', demoEmail('head1'));
+  const head2 = await user('Hajiya Binta (House Head)', demoEmail('head2'));
   const houseDefs = [
     { houseNumber: 'KW-024', name: 'Musa House', section: 'B', head: head1 },
     { houseNumber: 'KW-031', name: 'Binta Plaza', section: 'C', head: head2 },
@@ -111,21 +122,21 @@ async function main() {
         sectionId: sections[d.section],
         houseNumber: d.houseNumber,
         name: d.name,
-        addressDescription: `${d.section === 'A' ? 'By the main gate' : d.section === 'B' ? 'Middle of Lace Row' : 'End of Brocade Lane'} (sample data)`,
+        addressDescription: `${d.section === 'A' ? 'By the main gate' : d.section === 'B' ? 'Middle of Lace Row' : 'End of Brocade Lane'} ${DEMO_HOUSE_MARKER}`,
         verificationStatus: 'verified',
         headUserId: d.head?._id ?? null,
         headVerificationStatus: d.head ? 'verified' : 'unverified',
       });
-      if (d.head) await HouseStaff.create({ houseId: h._id, userId: d.head._id, role: 'head', assignedBy: admin._id });
+      if (d.head) await HouseStaff.create({ houseId: h._id, userId: d.head._id, role: 'head', assignedBy: admin?._id ?? d.head._id });
     }
     houses[d.houseNumber] = h;
   }
 
   const shopDefs = [
-    { name: 'Alhaji Sani Textiles', number: '015', house: 'KW-024', owner: ['Sani Abdullahi', 'owner1@demo.kantinkwari.test'], verified: true, wholesale: true, cover: 'stack' },
-    { name: 'Baba Bazin & Shadda', number: '016', house: 'KW-024', owner: ['Ibrahim Baba', 'owner2@demo.kantinkwari.test'], verified: true, wholesale: true, cover: 'collage' },
-    { name: 'Kwari Brocade Hub', number: '004', house: 'KW-031', owner: ['Zainab Yusuf', 'owner3@demo.kantinkwari.test'], verified: false, wholesale: true, cover: 'stack' },
-    { name: 'Hajiya Rolls & Plains', number: '009', house: 'KW-031', owner: ['Hadiza Lawal', 'owner4@demo.kantinkwari.test'], verified: false, wholesale: true, cover: 'collage' },
+    { name: 'Alhaji Sani Textiles', number: '015', house: 'KW-024', owner: ['Sani Abdullahi', demoEmail('owner1')], verified: true, wholesale: true, cover: 'stack' },
+    { name: 'Baba Bazin & Shadda', number: '016', house: 'KW-024', owner: ['Ibrahim Baba', demoEmail('owner2')], verified: true, wholesale: true, cover: 'collage' },
+    { name: 'Kwari Brocade Hub', number: '004', house: 'KW-031', owner: ['Zainab Yusuf', demoEmail('owner3')], verified: false, wholesale: true, cover: 'stack' },
+    { name: 'Hajiya Rolls & Plains', number: '009', house: 'KW-031', owner: ['Hadiza Lawal', demoEmail('owner4')], verified: false, wholesale: true, cover: 'collage' },
   ];
 
   for (const d of shopDefs) {
@@ -143,7 +154,7 @@ async function main() {
         houseId: house._id,
         ownerId: owner._id,
         categoryIds: [categories.bazin],
-        description: `${d.name} sells original Sheradom Bazin Riche by the metre and by the 30 m piece, retail and wholesale. (Sample shop — development data.)`,
+        description: `${d.name} sells original Sheradom Bazin Riche by the metre and by the 30 m piece, retail and wholesale. (Demo shop — sample data.)`,
         locationDescription: `First floor, door ${d.number}`,
         contactPhone: '+2348000000000',
         contactPreferences: { chat: true, phone: false, whatsapp: false },
@@ -193,7 +204,7 @@ async function main() {
         houseId: shop.houseId,
         name: p.name,
         slug: slugify(p.name),
-        description: `${SHERADOM_DETAILS} ${perPiece ? 'Sold as a full 30 m piece.' : 'Cut to your length; buy 30 m or more for the wholesale price.'}\n\nSample listing — development data; prices are illustrative.`,
+        description: `${SHERADOM_DETAILS} ${perPiece ? 'Sold as a full 30 m piece.' : 'Cut to your length; buy 30 m or more for the wholesale price.'}\n\nDemo listing — sample data; prices are illustrative.`,
         categoryId: categories.bazin,
         subcategory: 'Bazin Riche',
         images,
@@ -224,13 +235,13 @@ async function main() {
   for (const h of Object.values(houses)) await recountHouseShops(h._id);
 
   // A worker for the first shop and two customers.
-  const worker = await user('Musa (Shop Worker)', 'worker@demo.kantinkwari.test');
+  const worker = await user('Musa (Shop Worker)', demoEmail('worker'));
   const firstShop = await Shop.findOne({ slug: slugify('Alhaji Sani Textiles') });
   if (firstShop && !(await ShopMembership.exists({ shopId: firstShop._id, userId: worker._id, status: 'active' }))) {
     await ShopMembership.create({ shopId: firstShop._id, userId: worker._id, role: 'worker', permissions: ['products.manage', 'inventory.manage', 'chats.manage'], title: 'Sales assistant', addedBy: firstShop.ownerId });
   }
-  await user('Aisha (Customer)', 'customer1@demo.kantinkwari.test', { phone: '+2348030000001' });
-  await user('Emeka (Wholesale buyer)', 'customer2@demo.kantinkwari.test');
+  await user('Aisha (Customer)', demoEmail('customer1'), { phone: '+2348030000001' });
+  await user('Emeka (Wholesale buyer)', demoEmail('customer2'));
 
   let processed = 0;
   if (env.IMAGE_EMBEDDING_PROVIDER !== 'none') {
@@ -240,9 +251,12 @@ async function main() {
       if (!n) break;
     }
   }
+  const accounts = [...(LIVE ? [] : ['admin', 'manager']), 'head1', 'head2', 'owner1', 'owner2', 'owner3', 'owner4', 'worker', 'customer1', 'customer2'].map(demoEmail);
   logger.info(
-    { password: DEMO_PASSWORD, accounts: ['admin@', 'manager@', 'head1@', 'head2@', 'owner1-4@', 'worker@', 'customer1-2@'].map((a) => `${a}demo.kantinkwari.test`), embeddingsProcessed: processed },
-    'Development seed complete — all demo accounts share the password shown',
+    { password: DEMO_PASSWORD, accounts, embeddingsProcessed: processed },
+    LIVE
+      ? 'Demo data added to the live database. New demo accounts use the password shown (it is not stored anywhere else); accounts that already existed keep their old password. Remove it all with: npm run demo:remove -- --confirm'
+      : 'Development seed complete — all demo accounts share the password shown',
   );
   await disconnectDatabase();
 }

@@ -15,7 +15,8 @@
     "test": "npm run build:shared && npm run test -w @kkdm/api",
     "typecheck": "npm run build:shared && npm run typecheck -w @kkdm/api && npm run typecheck -w @kkdm/mobile",
     "lint": "npm run lint -w @kkdm/api && npm run lint -w @kkdm/mobile",
-    "seed": "npm run seed -w @kkdm/api",
+    "seed": "npm run seed -w @kkdm/api --",
+    "demo:remove": "npm run demo:remove -w @kkdm/api --",
     "db:indexes": "npm run db:indexes -w @kkdm/api",
     "postinstall": "npm run build -w @kkdm/shared",
     "dev:db": "node scripts/dev-mongo.mjs"
