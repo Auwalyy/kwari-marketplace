@@ -1,0 +1,67 @@
+# Render Blueprint for the Kantin Kwari API (https://render.com/docs/blueprint-spec).
+# In Render: New + → Blueprint → select this repository. Values marked `sync: false` are asked for
+# during setup (secrets are never committed). See docs/deploy-render.md for the full walkthrough.
+services:
+  - type: web
+    name: kantin-kwari-api
+    runtime: node
+    # Frankfurt is the closest Render region to Nigeria.
+    region: frankfurt
+    # Starter keeps the API always on (the free plan sleeps after 15 minutes, which stops chat and
+    # background jobs and makes the first request take ~1 minute).
+    plan: starter
+    branch: main
+    # Installs only the API + shared workspaces (not the Expo app), then compiles TypeScript.
+    buildCommand: npm ci --include=dev -w @kkdm/shared -w @kkdm/api --include-workspace-root && npm run build:api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /ready
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      # Your Render URL, e.g. https://kantin-kwari-api.onrender.com (shown at the top of the service page).
+      - key: API_BASE_URL
+        sync: false
+      # Atlas connection string including the database name: ...mongodb.net/kkdm?retryWrites=true&w=majority
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      # Cloudflare R2 (S3-compatible) image storage.
+      - key: STORAGE_PROVIDER
+        value: s3
+      - key: STORAGE_REGION
+        value: auto
+      - key: STORAGE_BUCKET
+        sync: false
+      # Second bucket with public access OFF, for private chat attachments.
+      - key: STORAGE_PRIVATE_BUCKET
+        sync: false
+      - key: STORAGE_ENDPOINT
+        sync: false
+      - key: STORAGE_ACCESS_KEY
+        sync: false
+      - key: STORAGE_SECRET_KEY
+        sync: false
+      # The bucket's public URL, e.g. https://pub-xxxxxxxx.r2.dev (no custom domain needed to start).
+      - key: STORAGE_PUBLIC_BASE_URL
+        sync: false
+      # Verification codes: "none" until you add an email (SMTP) / SMS (Termii) provider.
+      - key: VERIFICATION_EMAIL_PROVIDER
+        value: none
+      - key: VERIFICATION_SMS_PROVIDER
+        value: none
+      - key: IMAGE_EMBEDDING_PROVIDER
+        value: none
+      - key: PAYMENT_PROVIDER
+        value: none
+      - key: PUSH_NOTIFICATION_ENABLED
+        value: "false"
+      - key: LOG_LEVEL
+        value: info

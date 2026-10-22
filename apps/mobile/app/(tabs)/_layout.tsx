@@ -22,12 +22,12 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.inkFaint,
+        tabBarActiveTintColor: colors.tabActive,
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          backgroundColor: colors.creamLight,
-          borderTopColor: colors.line,
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.tabBarBorder,
           borderTopWidth: StyleSheet.hairlineWidth,
           height: 56 + bottomPad,
           paddingTop: 6,
@@ -47,7 +47,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="market" options={{ title: 'Market', tabBarIcon: ({ color }) => <Store size={22} color={color} /> }} />
       <Tabs.Screen
         name="cart"
-        options={{ title: 'Cart', tabBarIcon: ({ color }) => <ShoppingCart size={22} color={color} />, tabBarBadge: cart.data?.itemCount || undefined, tabBarBadgeStyle: { backgroundColor: colors.brand } }}
+        options={{ title: 'Cart', tabBarIcon: ({ color }) => <ShoppingCart size={22} color={color} />, tabBarBadge: cart.data?.itemCount || undefined }}
       />
       <Tabs.Screen name="inbox" options={{ title: 'Chats', tabBarIcon: ({ color }) => <MessageCircle size={22} color={color} />, tabBarBadge: chatBadge || undefined }} />
       <Tabs.Screen name="account" options={{ title: 'Account', tabBarIcon: ({ color }) => <UserRound size={22} color={color} /> }} />

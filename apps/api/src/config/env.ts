@@ -66,6 +66,11 @@ const schema = z.object({
   STORAGE_LOCAL_DIR: z.string().default('uploads'),
   STORAGE_PUBLIC_BASE_URL: emptyToUndefined,
   STORAGE_BUCKET: emptyToUndefined,
+  /**
+   * Optional second bucket for private objects (chat attachments). Needed when the main bucket is publicly
+   * readable as a whole, as with Cloudflare R2 public access / r2.dev URLs.
+   */
+  STORAGE_PRIVATE_BUCKET: emptyToUndefined,
   STORAGE_REGION: emptyToUndefined,
   STORAGE_ENDPOINT: emptyToUndefined,
   STORAGE_ACCESS_KEY: emptyToUndefined,

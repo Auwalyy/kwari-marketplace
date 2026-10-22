@@ -62,7 +62,10 @@ class LocalStorage implements StorageProvider {
 class S3Storage implements StorageProvider {
   readonly name = 's3';
   private client: S3Client;
-  constructor(private readonly bucket: string) {
+  constructor(
+    private readonly bucket: string,
+    private readonly privateBucket: string = bucket,
+  ) {
     this.client = new S3Client({
       region: env.STORAGE_REGION ?? 'auto',
       endpoint: env.STORAGE_ENDPOINT,
@@ -70,11 +73,15 @@ class S3Storage implements StorageProvider {
       credentials: { accessKeyId: env.STORAGE_ACCESS_KEY!, secretAccessKey: env.STORAGE_SECRET_KEY! },
     });
   }
+  /** Keys under private/ live in the private bucket when one is configured. */
+  private bucketFor(key: string) {
+    return key.startsWith('private/') ? this.privateBucket : this.bucket;
+  }
   async put(key: string, body: Buffer, contentType: string, visibility: Visibility) {
     assertSafeKey(key);
     await this.client.send(
       new PutObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketFor(key),
         Key: key,
         Body: body,
         ContentType: contentType,
@@ -83,12 +90,12 @@ class S3Storage implements StorageProvider {
     );
   }
   async get(key: string) {
-    const out = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const out = await this.client.send(new GetObjectCommand({ Bucket: this.bucketFor(key), Key: key }));
     const bytes = await out.Body!.transformToByteArray();
     return Buffer.from(bytes);
   }
   async delete(key: string) {
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucketFor(key), Key: key }));
   }
   publicUrl(key: string) {
     if (env.STORAGE_PUBLIC_BASE_URL) return `${env.STORAGE_PUBLIC_BASE_URL.replace(/\/$/, '')}/${key}`;
@@ -96,7 +103,7 @@ class S3Storage implements StorageProvider {
     return `https://${this.bucket}.s3.${env.STORAGE_REGION}.amazonaws.com/${key}`;
   }
   async signedUrl(key: string, ttlSeconds: number) {
-    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), { expiresIn: ttlSeconds });
+    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucketFor(key), Key: key }), { expiresIn: ttlSeconds });
   }
 }
 
@@ -106,7 +113,7 @@ export function storage(): StorageProvider {
   if (!instance) {
     instance =
       env.STORAGE_PROVIDER === 's3'
-        ? new S3Storage(env.STORAGE_BUCKET!)
+        ? new S3Storage(env.STORAGE_BUCKET!, env.STORAGE_PRIVATE_BUCKET ?? env.STORAGE_BUCKET!)
         : new LocalStorage(path.resolve(process.cwd(), env.STORAGE_LOCAL_DIR));
   }
   return instance;

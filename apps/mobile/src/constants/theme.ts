@@ -15,6 +15,11 @@ export const colors = {
   warning: '#B7791F',
   info: '#2B6CB0',
   white: '#FFFFFF',
+  // Bottom tab bar: forest green with gold active items.
+  tabBar: '#174F33',
+  tabBarBorder: '#0F3824',
+  tabActive: '#F2C94C',
+  tabInactive: '#A9C7B3',
 };
 
 export const hitSlop = { top: 10, bottom: 10, left: 10, right: 10 };

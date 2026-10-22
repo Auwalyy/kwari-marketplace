@@ -2,6 +2,8 @@
 
 The backend is a single Node.js service (a modular monolith: REST API, Socket.IO, background job worker). It needs MongoDB, S3-compatible object storage and optional providers.
 
+> **Step-by-step for Render + Atlas + Cloudflare R2 (no custom domain):** see [deploy-render.md](deploy-render.md).
+
 ## 1. Database (MongoDB Atlas)
 
 1. Create a project and a cluster in the region nearest your users (e.g. `eu-west` / `af-south-1` if available). Use an M10+ dedicated tier for production; Atlas Vector Search and transactions are supported.
