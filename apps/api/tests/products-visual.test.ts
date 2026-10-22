@@ -150,7 +150,7 @@ describe('visual fabric search', () => {
     expect(ids.indexOf(red.id)).toBeLessThan(ids.indexOf(blue.id) === -1 ? Infinity : ids.indexOf(blue.id));
     const first = res.body.data.matches[0];
     expect(first.similarity).toBeGreaterThan(0.9);
-    expect(['very_similar', 'similar', 'somewhat_similar']).toContain(first.relevance);
+    expect(['best_match', 'very_similar', 'similar', 'somewhat_similar']).toContain(first.relevance);
     expect(first.product.shop.breadcrumb.label).toContain('House KW-024');
     void green;
   });
@@ -226,8 +226,15 @@ describe('visual fabric search', () => {
     const [a, b, c] = await p.embed([await fabricImage([RED, BLUE]), await fabricImage([[215, 25, 25], [25, 35, 215]]), await fabricImage([GREEN, [250, 250, 0]], 'checks')]);
     const cos = (x: number[], y: number[]) => x.reduce((s, v, i) => s + v * y[i], 0);
     expect(cos(a, b)).toBeGreaterThan(cos(a, c));
-    expect(relevanceBand(0.99, 0.8)).toBe('very_similar');
-    expect(relevanceBand(0.81, 0.8)).toBe('somewhat_similar');
+    // Jina-like scores: every bazin passes the 0.6 threshold, but only the clear winner is the best match.
+    const ctx = { threshold: 0.6, top: 0.936, runnerUp: 0.858 };
+    expect(relevanceBand(0.936, ctx)).toBe('best_match');
+    expect(relevanceBand(0.858, ctx)).toBe('similar');
+    expect(relevanceBand(0.815, ctx)).toBe('somewhat_similar');
+    // Two near-equal leaders: neither is singled out.
+    expect(relevanceBand(0.93, { threshold: 0.6, top: 0.93, runnerUp: 0.92 })).toBe('very_similar');
+    // A weak top result is never the best match, however far ahead.
+    expect(relevanceBand(0.65, { threshold: 0.6, top: 0.65 })).toBe('somewhat_similar');
     void registerUser;
   });
 });

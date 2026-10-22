@@ -36,6 +36,8 @@ function filterKey(f: Partial<VisualSearchFilters>) {
 /** Pages through ranked candidates, re-checking each product is still publicly available. */
 async function buildPage(candidates: SimilarCandidate[], f: VisualSearchFilters, threshold: number) {
   const eligible = candidates.filter((c) => c.score >= threshold);
+  // Candidates are sorted best-first, so bands on later pages are graded against the same top score.
+  const bandContext = { threshold, top: eligible[0]?.score ?? 1, runnerUp: eligible[1]?.score };
   const start = (f.page - 1) * f.limit;
   const slice = eligible.slice(start, start + f.limit);
   const products = await Product.find({ _id: { $in: slice.map((c) => c.productId) }, ...PUBLIC_PRODUCT_FILTER }).lean();
@@ -51,7 +53,7 @@ async function buildPage(candidates: SimilarCandidate[], f: VisualSearchFilters,
     matches.push({
       product: summary,
       similarity: Math.max(0, Math.min(1, Math.round(c.score * 1000) / 1000)),
-      relevance: relevanceBand(c.score, threshold),
+      relevance: relevanceBand(c.score, bandContext),
       matchedImageUrl: img?.thumbnailUrl ?? summary.thumbnailUrl ?? '',
     });
   }

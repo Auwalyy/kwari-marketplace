@@ -19,7 +19,8 @@ interface Filters {
   inStockOnly?: boolean;
 }
 
-const RELEVANCE: Record<VisualMatchDto['relevance'], { label: string; tone: 'success' | 'info' | 'neutral' }> = {
+const RELEVANCE: Record<VisualMatchDto['relevance'], { label: string; tone: 'gold' | 'success' | 'info' | 'neutral' }> = {
+  best_match: { label: 'Best match', tone: 'gold' },
   very_similar: { label: 'Very similar', tone: 'success' },
   similar: { label: 'Similar', tone: 'info' },
   somewhat_similar: { label: 'Somewhat similar', tone: 'neutral' },
@@ -28,8 +29,9 @@ const RELEVANCE: Record<VisualMatchDto['relevance'], { label: string; tone: 'suc
 type Phase = 'pick' | 'preview' | 'searching' | 'results' | 'error';
 
 /**
- * Find fabric by image. Results are ranked by visual similarity; they are never presented as exact
- * matches, and a failure never falls back to unrelated products — it offers text search instead.
+ * Find fabric by image. Results are ranked by visual similarity. A clear winner is shown as the "best
+ * match", but nothing is presented as an identical fabric, and a failure never falls back to unrelated
+ * products — it offers text search instead.
  */
 export default function VisualSearch() {
   const config = useAppConfig();
@@ -217,8 +219,13 @@ export default function VisualSearch() {
 function MatchCard({ match }: { match: VisualMatchDto }) {
   const p = match.product;
   const band = RELEVANCE[match.relevance];
+  const best = match.relevance === 'best_match';
   return (
-    <Pressable onPress={() => router.push(`/product/${p.id}`)} className="mb-3 flex-row rounded-2xl border border-line bg-white p-3 active:bg-cream-50" accessibilityRole="button">
+    <Pressable
+      onPress={() => router.push(`/product/${p.id}`)}
+      className={`mb-3 flex-row rounded-2xl bg-white p-3 active:bg-cream-50 ${best ? 'border-2 border-brand-700' : 'border border-line'}`}
+      accessibilityRole="button"
+    >
       <Image source={{ uri: match.matchedImageUrl || p.thumbnailUrl || undefined }} style={{ width: 96, height: 96, borderRadius: 12 }} contentFit="cover" />
       <View className="ml-3 flex-1">
         <View className="mb-1 flex-row items-center">

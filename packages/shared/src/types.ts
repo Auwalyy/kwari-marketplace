@@ -361,8 +361,11 @@ export interface VisualMatchDto {
   product: ProductSummaryDto;
   /** Cosine similarity in [0,1] for the best-matching image of the product. */
   similarity: number;
-  /** Human-readable relevance band derived from similarity; never claims an exact match. */
-  relevance: 'very_similar' | 'similar' | 'somewhat_similar';
+  /**
+   * Human-readable relevance band, graded against the threshold and the best score of the search.
+   * `best_match` marks a strong top result clearly ahead of the rest; no band claims an identical fabric.
+   */
+  relevance: 'best_match' | 'very_similar' | 'similar' | 'somewhat_similar';
   matchedImageUrl: string;
 }
 

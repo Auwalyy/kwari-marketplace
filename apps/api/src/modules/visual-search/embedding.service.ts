@@ -213,10 +213,26 @@ export function minSimilarity(p: ImageEmbeddingProvider) {
   return env.VISUAL_SEARCH_MIN_SIMILARITY ?? p.defaultMinSimilarity;
 }
 
-/** Maps a raw similarity to a band relative to the threshold. Never "exact". */
-export function relevanceBand(score: number, threshold: number): 'very_similar' | 'similar' | 'somewhat_similar' {
+export type RelevanceBand = 'best_match' | 'very_similar' | 'similar' | 'somewhat_similar';
+
+const BAND_ORDER: RelevanceBand[] = ['best_match', 'very_similar', 'similar', 'somewhat_similar'];
+
+/** Lead the top result needs over the runner-up to be called the best match. */
+const BEST_MATCH_LEAD = 0.03;
+
+/**
+ * Maps a similarity to a band. Learned models (e.g. CLIP) score every fabric of the same kind highly, so a
+ * band based on the threshold alone would label a whole catalogue of bazin "very similar". Each result is
+ * therefore graded both against the threshold and against the best score of this search, taking the
+ * weaker of the two. The top result is the "best match" only when it is strong and clearly ahead of the
+ * runner-up. That still doesn't claim the fabric is identical.
+ */
+export function relevanceBand(score: number, ctx: { threshold: number; top: number; runnerUp?: number }): RelevanceBand {
+  const { threshold, top, runnerUp } = ctx;
   const rel = (score - threshold) / Math.max(1 - threshold, 1e-6);
-  if (rel >= 0.6) return 'very_similar';
-  if (rel >= 0.3) return 'similar';
-  return 'somewhat_similar';
+  if (score >= top && rel >= 0.5 && (runnerUp === undefined || top - runnerUp >= BEST_MATCH_LEAD)) return 'best_match';
+  const absolute: RelevanceBand = rel >= 0.6 ? 'very_similar' : rel >= 0.3 ? 'similar' : 'somewhat_similar';
+  const gap = top - score;
+  const relative: RelevanceBand = gap <= 0.03 ? 'very_similar' : gap <= 0.08 ? 'similar' : 'somewhat_similar';
+  return BAND_ORDER[Math.max(BAND_ORDER.indexOf(absolute), BAND_ORDER.indexOf(relative))];
 }
