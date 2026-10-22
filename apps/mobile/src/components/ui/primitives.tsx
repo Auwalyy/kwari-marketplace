@@ -1,4 +1,4 @@
-import { forwardRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View, type PressableProps, type TextInputProps, type ViewProps } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { colors } from '@/constants/theme';
@@ -35,13 +35,14 @@ export function Caption({ children, className, numberOfLines }: { children: Reac
 
 /* Buttons --------------------------------------------------------------------------------------- */
 
-type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent';
 const variantClass: Record<Variant, { box: string; text: string; icon: string }> = {
   primary: { box: 'bg-brand-700 active:bg-brand-800', text: 'text-white', icon: colors.white },
   secondary: { box: 'bg-brand-50 active:bg-brand-100', text: 'text-brand-800', icon: colors.brand },
   outline: { box: 'border border-line bg-white active:bg-cream-100', text: 'text-ink-800', icon: colors.ink },
   ghost: { box: 'bg-transparent active:bg-cream-200', text: 'text-brand-700', icon: colors.brand },
   danger: { box: 'bg-danger-500 active:bg-danger-700', text: 'text-white', icon: colors.white },
+  accent: { box: 'bg-gold-500 active:bg-gold-700', text: 'text-brand-900', icon: colors.brandDark },
 };
 
 export interface ButtonProps extends Omit<PressableProps, 'children'> {
@@ -102,14 +103,13 @@ export interface TextFieldProps extends TextInputProps {
   containerClassName?: string;
 }
 
-export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField({ label, error, hint, icon: Icon, right, containerClassName, multiline, className, ...rest }, ref) {
+export function TextField({ label, error, hint, icon: Icon, right, containerClassName, multiline, className, ...rest }: TextFieldProps) {
   return (
     <View className={cx('mb-4', containerClassName)}>
       {label ? <Text className="mb-1.5 text-sm font-medium text-ink-700">{label}</Text> : null}
       <View className={cx('flex-row items-center rounded-xl border bg-white px-3', error ? 'border-danger-500' : 'border-line', multiline ? 'min-h-[96px] items-start py-2' : 'h-12')}>
         {Icon ? <Icon size={18} color={colors.inkFaint} style={{ marginRight: 8 }} /> : null}
         <TextInput
-          ref={ref}
           placeholderTextColor={colors.inkFaint}
           multiline={multiline}
           textAlignVertical={multiline ? 'top' : 'center'}
@@ -122,7 +122,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       {error ? <Text className="mt-1 text-sm text-danger-500">{error}</Text> : hint ? <Text className="mt-1 text-xs text-ink-500">{hint}</Text> : null}
     </View>
   );
-});
+}
 
 /* Layout ---------------------------------------------------------------------------------------- */
 
