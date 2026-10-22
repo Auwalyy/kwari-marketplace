@@ -42,6 +42,9 @@ npm run dev:db      # persistent single-node replica set at mongodb://127.0.0.1:
 
 **Option B — Atlas:** create a cluster (M0 works for development), a database user and network access rule, then set
 `MONGODB_URI=mongodb+srv://USER:PASS@cluster0.xxxx.mongodb.net/kkdm?retryWrites=true&w=majority`.
+Include the database name (`/kkdm`). Without it, data goes into a database called `test`.
+
+If startup fails with `querySrv EBADRESP` (or `ECONNREFUSED`), your network's DNS can't resolve Atlas SRV records. This is common with some routers and ISPs. Set `MONGODB_DNS_SERVERS=8.8.8.8,1.1.1.1` in `.env`.
 
 Create indexes (safe to repeat; also creates the Atlas vector index when `VECTOR_SEARCH_PROVIDER=atlas`):
 
@@ -57,7 +60,9 @@ Transactions are used automatically on replica sets / Atlas. On a standalone `mo
 npm run seed            # add --reset (npm run seed -- --reset) to wipe the database first
 ```
 
-Creates the Kantin Kwari market with three sections, three houses, four shops, thirteen products with generated fabric-pattern images, and demo accounts. All demo records are labelled `[DEMO]` and every demo account uses the password **`DemoPass123`**:
+Creates the Kantin Kwari market with three sections, three houses, four bazin shops and ten **Sheradom Bazin Riche** products, using real fabric photos from `apps/api/src/scripts/seed-assets/sheradom/`. Each shop uses the stack/collage photo as its cover. Uploads go through the same pipeline as a seller's: validated, EXIF stripped, re-encoded and thumbnailed, then stored with the configured storage provider (local disk or R2/S3). If an embedding provider is configured, the visual-search embeddings are generated too. Prices are illustrative. Sample shops and products say "sample/development data" in their descriptions, demo accounts are named `[DEMO] …`, and every demo account uses the password **`DemoPass123`**.
+
+Re-run with `--reset` after upgrading from an older seed so the old generated-pattern products are removed. **Never run the seed against your production database.** It refuses when `NODE_ENV=production`.
 
 | Account | Role |
 |---|---|

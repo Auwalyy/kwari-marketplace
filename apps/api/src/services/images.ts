@@ -5,6 +5,17 @@ import { sha256 } from '../utils/crypto';
 
 sharp.cache(false);
 
+/**
+ * The prebuilt image library decodes AVIF but not HEIC (HEVC-compressed HEIF, the iPhone camera default).
+ * The mobile app converts photos to JPEG before upload; anything else gets an actionable message.
+ */
+function assertDecodable(meta: sharp.Metadata) {
+  if (!meta.format || !ALLOWED_FORMATS.has(meta.format)) throw badRequest('Only JPEG, PNG or WebP images are allowed', 'UNSUPPORTED_FILE_TYPE');
+  if (meta.format === 'heif' && meta.compression !== 'av1') {
+    throw badRequest('HEIC photos are not supported. Please upload a JPEG (set your camera to "Most Compatible").', 'HEIC_UNSUPPORTED');
+  }
+}
+
 export interface ProcessedImage {
   full: Buffer;
   thumbnail: Buffer;
@@ -35,9 +46,7 @@ export async function processUploadedImage(
   } catch {
     throw badRequest('The file is not a valid image', 'INVALID_IMAGE');
   }
-  if (!meta.format || !ALLOWED_FORMATS.has(meta.format)) {
-    throw badRequest('Only JPEG, PNG, WebP or HEIC images are allowed', 'UNSUPPORTED_FILE_TYPE');
-  }
+  assertDecodable(meta);
   const w = meta.width ?? 0;
   const h = meta.height ?? 0;
   if (w < UPLOAD_LIMITS.minImageDimension || h < UPLOAD_LIMITS.minImageDimension) {
@@ -85,7 +94,7 @@ export async function assertValidImage(input: Buffer): Promise<void> {
   } catch {
     throw badRequest('The file is not a valid image', 'INVALID_IMAGE');
   }
-  if (!meta.format || !ALLOWED_FORMATS.has(meta.format)) throw badRequest('Only JPEG, PNG, WebP or HEIC images are allowed', 'UNSUPPORTED_FILE_TYPE');
+  assertDecodable(meta);
   if ((meta.width ?? 0) < UPLOAD_LIMITS.minImageDimension || (meta.height ?? 0) < UPLOAD_LIMITS.minImageDimension) {
     throw badRequest(`Images must be at least ${UPLOAD_LIMITS.minImageDimension}px on each side`, 'IMAGE_TOO_SMALL');
   }

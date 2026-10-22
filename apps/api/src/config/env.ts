@@ -49,6 +49,11 @@ const schema = z.object({
   MONGODB_URI: emptyToUndefined,
   /** Set to false for standalone MongoDB servers that do not support multi-document transactions. */
   MONGODB_TRANSACTIONS: bool(true),
+  /**
+   * Comma-separated DNS servers used for the mongodb+srv:// lookup (e.g. "8.8.8.8,1.1.1.1"), for networks
+   * whose resolver cannot answer SRV queries (querySrv EBADRESP / ECONNREFUSED).
+   */
+  MONGODB_DNS_SERVERS: csv,
   JWT_ACCESS_SECRET: emptyToUndefined,
   JWT_REFRESH_SECRET: emptyToUndefined,
   ACCESS_TOKEN_TTL: durationSeconds('15m'),
@@ -141,6 +146,11 @@ export function assertRuntimeConfig(e: Env = env): void {
   }
   if (e.NODE_ENV === 'production') {
     if (e.STORAGE_PROVIDER === 'local') problems.push('STORAGE_PROVIDER=local is not allowed in production; configure s3');
+    if (e.STORAGE_PROVIDER === 's3' && e.STORAGE_ENDPOINT && !e.STORAGE_PUBLIC_BASE_URL) {
+      // R2 / Spaces / MinIO API endpoints are not publicly readable; images need a public domain or CDN URL.
+      problems.push('STORAGE_PUBLIC_BASE_URL is required with a custom STORAGE_ENDPOINT (e.g. your R2 public bucket URL or custom domain)');
+    }
+    if (!/^https:\/\//.test(e.API_BASE_URL)) problems.push('API_BASE_URL must use https in production');
     if (e.IMAGE_EMBEDDING_PROVIDER === 'local-baseline') {
       problems.push('IMAGE_EMBEDDING_PROVIDER=local-baseline is a development-only baseline; configure jina or cohere');
     }

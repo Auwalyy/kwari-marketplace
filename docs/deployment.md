@@ -21,12 +21,13 @@ STORAGE_REGION=auto                 # or e.g. eu-west-1
 STORAGE_ENDPOINT=https://<account>.r2.cloudflarestorage.com   # omit for AWS
 STORAGE_ACCESS_KEY=...
 STORAGE_SECRET_KEY=...
-STORAGE_PUBLIC_BASE_URL=https://images.example.com            # CDN / public domain for the bucket
+STORAGE_PUBLIC_BASE_URL=https://images.example.com            # CDN / public domain for the bucket (required with STORAGE_ENDPOINT)
 ```
 
 Permissions:
 - Give the API credentials `PutObject`, `GetObject` and `DeleteObject` on this bucket only.
 - Make **only the `public/` prefix** publicly readable (catalogue, shop and avatar images), ideally through a CDN.
+- **Cloudflare R2:** the `pub-….r2.dev` URL works for testing but is rate-limited. For production, connect a custom domain to the bucket (R2 → Settings → Custom Domains) and use it as `STORAGE_PUBLIC_BASE_URL`.
 - Keep `private/` (chat attachments) private. The API streams those objects or issues 5-minute signed URLs to authorised participants only.
 - Uploaded images are re-encoded to WebP with all metadata stripped before storage. Thumbnails (400 px) are used in lists.
 
@@ -53,7 +54,7 @@ CMD ["node", "apps/api/dist/server.js"]
 ```
 
 - Health check: `GET /health`. Readiness (includes the DB): `GET /ready`.
-- Behind a load balancer / proxy set `TRUST_PROXY` (e.g. `1`) so rate limits and audit logs see real client IPs.
+- Behind a load balancer / proxy set `TRUST_PROXY` to the number of proxy hops (usually `1` on Render, Railway, Fly.io or behind Nginx). Rate limits and audit logs then see real client IPs instead of the proxy's, so all users don't share one rate-limit bucket. The API logs a warning in production while it's still `loopback`.
 - Enable WebSockets on the proxy (sticky sessions are not required with the WebSocket transport).
 - Shutdown is graceful on SIGTERM (stops jobs, closes sockets and HTTP, disconnects the DB; 15 s timeout).
 - Logs are structured JSON (pino) with request IDs; tokens, passwords, codes and message text are redacted.
@@ -66,7 +67,8 @@ CMD ["node", "apps/api/dist/server.js"]
 
 ## 4. Mobile app
 
-1. Set `EXPO_PUBLIC_API_URL` for each profile in `apps/mobile/eas.json` (HTTPS in production).
+1. Set `EXPO_PUBLIC_API_URL` for each profile in `apps/mobile/eas.json` (HTTPS in production). Release builds show an "App not configured" screen if it is missing, still `api.example.com`, or not HTTPS.
+   App icons and splash are generated from vector artwork by `node scripts/generate-brand-assets.mjs`; edit that script to change the branding.
 2. `npx eas-cli@latest build --profile production --platform all`
 3. `npx eas-cli@latest submit` to Google Play / the App Store.
 4. Set `APP_ORIGIN` / `CORS_ALLOWED_ORIGINS` on the API only if you also serve a web build.

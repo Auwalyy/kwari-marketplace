@@ -12,7 +12,7 @@ export const imageUpload = multer({
   limits: { fileSize: UPLOAD_LIMITS.maxImageBytes, files: UPLOAD_LIMITS.maxImagesPerProduct, fields: 30, parts: 40 },
   fileFilter: (_req, file, cb) => {
     if (!(UPLOAD_LIMITS.allowedImageMimeTypes as readonly string[]).includes(file.mimetype)) {
-      return cb(badRequest('Only JPEG, PNG, WebP or HEIC images are allowed', 'UNSUPPORTED_FILE_TYPE'));
+      return cb(badRequest('Only JPEG, PNG or WebP images are allowed', 'UNSUPPORTED_FILE_TYPE'));
     }
     cb(null, true);
   },

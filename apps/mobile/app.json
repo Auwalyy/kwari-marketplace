@@ -2,23 +2,26 @@
   "expo": {
     "name": "Kantin Kwari",
     "slug": "kantin-kwari-digital-market",
+    "description": "Shop Kantin Kwari textile market, Kano: find fabrics by photo, compare prices and order from real market shops.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kantinkwari",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#FAF6EC",
     "ios": {
       "bundleIdentifier": "ng.kantinkwari.market",
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "Take a photo of a fabric to find similar fabrics, or photograph products for your shop.",
-        "NSPhotoLibraryUsageDescription": "Choose fabric photos to search for similar fabrics or to add to your products."
+        "NSPhotoLibraryUsageDescription": "Choose fabric photos to search for similar fabrics or to add to your products.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "ng.kantinkwari.market",
       "adaptiveIcon": {
-        "backgroundColor": "#123D28",
+        "backgroundColor": "#174F33",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -35,9 +38,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#123D28",
+          "backgroundColor": "#174F33",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 96
+          "imageWidth": 160
         }
       ],
       "expo-secure-store",
@@ -51,6 +54,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#174F33"
         }
       ],

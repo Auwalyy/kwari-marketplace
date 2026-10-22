@@ -1,4 +1,6 @@
+import { StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, MessageCircle, ShoppingCart, Store, UserRound } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { CartDto } from '@kkdm/shared';
@@ -12,14 +14,33 @@ export default function TabsLayout() {
   const unread = useUnreadCounts();
   const cart = useQuery({ queryKey: ['cart'], queryFn: () => api.get<CartDto>('/cart'), enabled: authed });
   const chatBadge = unread.customerChats + unread.shopChatsTotal;
+  // The bar grows by the device's bottom inset (iPhone home indicator, Android gesture bar) so labels
+  // are never hidden behind it. A fixed height would clip them on notched devices.
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 8);
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.inkFaint,
-        tabBarStyle: { backgroundColor: colors.creamLight, borderTopColor: colors.line, height: 62, paddingTop: 6 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: {
+          backgroundColor: colors.creamLight,
+          borderTopColor: colors.line,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 56 + bottomPad,
+          paddingTop: 6,
+          paddingBottom: bottomPad,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: -2 },
+        },
+        tabBarItemStyle: { paddingVertical: 2 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarBadgeStyle: { backgroundColor: colors.danger, fontSize: 10 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={22} color={color} /> }} />

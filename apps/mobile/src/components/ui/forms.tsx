@@ -2,6 +2,7 @@ import { Controller, type Control, type FieldPath, type FieldValues } from 'reac
 import { Pressable, Switch, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Camera, ImagePlus, X } from 'lucide-react-native';
 import { UPLOAD_LIMITS } from '@kkdm/shared';
 import { TextField, type TextFieldProps, Chip } from './primitives';
@@ -68,9 +69,24 @@ export interface PickedImage {
   type: string;
 }
 
+const MAX_UPLOAD_EDGE = 2000;
+
 /**
- * Picks images from the camera or gallery with optional cropping. Files over the upload limit are
- * rejected client-side; the server still validates and re-encodes every upload.
+ * Re-encodes a picked photo as JPEG with the longest edge capped. iPhones save HEIC by default, which
+ * the server cannot decode; this also cuts upload size on slow mobile connections.
+ */
+async function toUploadJpeg(a: ImagePicker.ImagePickerAsset): Promise<PickedImage> {
+  const ctx = ImageManipulator.manipulate(a.uri);
+  const longest = Math.max(a.width ?? 0, a.height ?? 0);
+  if (longest > MAX_UPLOAD_EDGE) ctx.resize((a.width ?? 0) >= (a.height ?? 0) ? { width: MAX_UPLOAD_EDGE } : { height: MAX_UPLOAD_EDGE });
+  const image = await ctx.renderAsync();
+  const out = await image.saveAsync({ compress: 0.85, format: SaveFormat.JPEG });
+  return { uri: out.uri, name: `photo-${Date.now()}-${Math.round(Math.random() * 1e6)}.jpg`, type: 'image/jpeg' };
+}
+
+/**
+ * Picks images from the camera or gallery with optional cropping, converted to upload-ready JPEGs.
+ * The server still validates and re-encodes every upload.
  */
 export async function pickImages(source: 'camera' | 'library', opts: { multiple?: boolean; crop?: boolean; limit?: number } = {}): Promise<PickedImage[]> {
   const perm = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -91,11 +107,11 @@ export async function pickImages(source: 'camera' | 'library', opts: { multiple?
   if (result.canceled) return [];
   const picked: PickedImage[] = [];
   for (const a of result.assets) {
-    if (a.fileSize && a.fileSize > UPLOAD_LIMITS.maxImageBytes) {
-      toast.error('That image is larger than 8 MB. Choose a smaller one.');
-      continue;
+    try {
+      picked.push(await toUploadJpeg(a));
+    } catch {
+      toast.error('That photo could not be prepared for upload. Try another one.');
     }
-    picked.push({ uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.jpg`, type: a.mimeType ?? 'image/jpeg' });
   }
   return picked;
 }

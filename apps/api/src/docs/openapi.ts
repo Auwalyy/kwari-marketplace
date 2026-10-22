@@ -221,6 +221,7 @@ export const ROUTES: RouteDoc[] = [
       ['put', `/admin/users/${id}/roles`, 'Assign platform roles / manager scope'],
       ['get', '/admin/user-lookup', 'Find user by email/phone'],
       ['get', '/admin/houses', 'Houses with heads'],
+      ['get', `/admin/houses/${id}`, 'House detail (admin)'],
       ['get', '/admin/shops', 'Shops'],
       ['patch', `/admin/shops/${id}`, 'Suspend / verify shop'],
       ['post', `/admin/shops/${id}/entitlements`, 'Grant subscription plan'],

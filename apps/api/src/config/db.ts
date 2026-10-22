@@ -1,3 +1,4 @@
+import dns from 'node:dns';
 import mongoose, { type ClientSession } from 'mongoose';
 import { env } from './env';
 import { logger } from './logger';
@@ -8,6 +9,11 @@ mongoose.set('strictQuery', true);
 
 export async function connectDatabase(uri = env.MONGODB_URI): Promise<typeof mongoose> {
   if (!uri) throw new Error('MONGODB_URI is not configured');
+  if (env.MONGODB_DNS_SERVERS.length) {
+    // The driver resolves mongodb+srv:// records with dns.resolveSrv/resolveTxt, which honour these servers.
+    dns.setServers(env.MONGODB_DNS_SERVERS);
+    logger.info({ servers: env.MONGODB_DNS_SERVERS }, 'Using custom DNS servers for MongoDB SRV lookup');
+  }
   const conn = await mongoose.connect(uri, {
     serverSelectionTimeoutMS: 10_000,
     maxPoolSize: 20,

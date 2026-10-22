@@ -6,6 +6,8 @@ import { ChevronLeft } from 'lucide-react-native';
 import { colors } from '@/constants/theme';
 import { cx } from './primitives';
 
+const HEADER_HEIGHT = 56;
+
 interface ScreenProps {
   title?: string;
   subtitle?: string;
@@ -49,7 +51,12 @@ export function Screen({ title, subtitle, back = true, right, children, scroll =
     <View className="flex-1 bg-cream-100" style={{ paddingTop: insets.top }}>
       {title !== undefined ? <Header title={title} subtitle={subtitle} back={back} right={right} /> : null}
       {keyboard ? (
-        <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          className="flex-1"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          // Offset = everything above this view (status bar inset + header), so footers stay above the keyboard.
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + (title !== undefined ? HEADER_HEIGHT : 0) : 0}
+        >
           {body}
         </KeyboardAvoidingView>
       ) : (
@@ -61,7 +68,7 @@ export function Screen({ title, subtitle, back = true, right, children, scroll =
 
 export function Header({ title, subtitle, back = true, right }: { title: string; subtitle?: string; back?: boolean; right?: ReactNode }) {
   return (
-    <View className="min-h-[56px] flex-row items-center border-b border-line bg-cream-100 px-2">
+    <View style={{ minHeight: HEADER_HEIGHT }} className="flex-row items-center border-b border-line bg-cream-100 px-2">
       {back && router.canGoBack() ? (
         <Pressable onPress={() => router.back()} hitSlop={10} className="h-10 w-10 items-center justify-center rounded-full active:bg-cream-200" accessibilityRole="button" accessibilityLabel="Go back">
           <ChevronLeft size={26} color={colors.ink} />

@@ -19,11 +19,20 @@ async function main() {
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
 
+  if (env.NODE_ENV === 'production' && env.TRUST_PROXY === 'loopback') {
+    logger.warn('TRUST_PROXY=loopback in production: behind a load balancer set TRUST_PROXY=1 (hops) or every client shares one IP for rate limiting');
+  }
+
   if (env.JOBS_ENABLED) {
     startJobWorker();
     startScheduler();
   }
 
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') logger.fatal(`Port ${env.PORT} is already in use. Stop the other process or set PORT to a free port.`);
+    else logger.fatal({ err: err.message }, 'HTTP server error');
+    process.exit(1);
+  });
   server.listen(env.PORT, () => {
     const visual = embeddingProvider();
     logger.info(

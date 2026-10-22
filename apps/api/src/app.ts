@@ -35,10 +35,21 @@ import { adminRouter } from './modules/admin/admin.routes';
 import { configRouter } from './modules/admin/config.routes';
 import { buildOpenApiDocument } from './docs/openapi';
 
+/**
+ * Express treats a numeric *string* as an IP address, so "1" must become the number 1 (one proxy hop).
+ * Getting this wrong makes every client share the proxy's IP for rate limiting and audit logs.
+ */
+export function parseTrustProxy(value: string): boolean | number | string {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (/^\d+$/.test(value)) return Number(value);
+  return value;
+}
+
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', env.TRUST_PROXY === 'true' ? true : env.TRUST_PROXY === 'false' ? false : env.TRUST_PROXY);
+  app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY));
 
   app.use(requestId);
   app.use(

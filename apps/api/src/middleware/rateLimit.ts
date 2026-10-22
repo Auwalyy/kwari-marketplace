@@ -28,12 +28,14 @@ function limiter(name: string, windowMs: number, limit: number, byUser = false, 
 
 const MIN = 60_000;
 
-export const globalLimiter = limiter('global', MIN, 300);
-export const authLimiter = limiter('auth', 15 * MIN, 30);
-export const otpLimiter = limiter('otp', 15 * MIN, 8);
+// Nigerian mobile carriers put many subscribers behind one public IP (CGNAT), so per-IP limits are generous;
+// brute force is additionally stopped per account (login lockout, per-code attempt limits).
+export const globalLimiter = limiter('global', MIN, 600);
+export const authLimiter = limiter('auth', 15 * MIN, 100);
+export const otpLimiter = limiter('otp', 15 * MIN, 20);
 export const invitationRedeemLimiter = limiter('invite', 15 * MIN, 15, true);
 export const messagingLimiter = limiter('msg', MIN, 60, true);
-export const searchLimiter = limiter('search', MIN, 90);
+export const searchLimiter = limiter('search', MIN, 180);
 export const visualSearchLimiter = limiter('vsearch', MIN, 10, true);
 export const uploadLimiter = limiter('upload', MIN, 30, true);
 export const paymentLimiter = limiter('payment', MIN, 10, true);

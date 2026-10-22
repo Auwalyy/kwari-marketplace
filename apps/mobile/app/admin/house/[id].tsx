@@ -15,7 +15,7 @@ export default function AdminHouse() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const house = useQuery({ queryKey: ['house', id], queryFn: () => api.get<HouseDto>(`/houses/${id}`) });
-  const admin = useQuery({ queryKey: ['admin', 'houses', 'one', id], enabled: !!house.data, queryFn: async () => (await api.page<AdminHouseRow & { houseNumber: string }>('/admin/houses', { q: house.data!.houseNumber, marketId: house.data!.marketId, limit: 5 })).items.find((h) => h.id === id) ?? null });
+  const admin = useQuery({ queryKey: ['admin', 'houses', 'one', id], queryFn: () => api.get<AdminHouseRow>(`/admin/houses/${id}`) });
   const sections = useQuery({ queryKey: ['sections', house.data?.marketId], queryFn: () => api.get<SectionDto[]>(`/markets/${house.data!.marketId}/sections`), enabled: !!house.data });
   const [s, setS] = useDerivedState(
     admin.data,

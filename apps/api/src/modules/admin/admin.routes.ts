@@ -698,18 +698,11 @@ adminRouter.post('/announcements', adminOnly, async (req, res) => {
 
 /* Market structure helpers -------------------------------------------------------------------- */
 
-adminRouter.get('/houses', async (req, res) => {
-  const a = requireAuth(req);
-  const q = parse(paginationSchema.extend({ marketId: objectId.optional(), q: z.string().trim().max(40).optional(), headless: z.coerce.boolean().optional() }), req.query);
-  const filter: Record<string, unknown> = { ...marketScopeFilter(a) };
-  if (q.marketId) filter.marketId = q.marketId;
-  if (q.headless) filter.headUserId = null;
-  if (q.q) filter.houseNumber = new RegExp(escapeRegex(q.q), 'i');
-  const [items, total] = await Promise.all([House.find(filter).sort({ houseNumber: 1 }).skip(skipFor(q.page, q.limit)).limit(q.limit).lean(), House.countDocuments(filter)]);
+async function toAdminHouseRows(items: any[]) {
   const heads = await User.find({ _id: { $in: items.map((h) => h.headUserId).filter(Boolean) } }).select('fullName phone').lean();
-  paginated(
-    res,
-    items.map((h) => ({
+  return items.map((h) => {
+    const head = heads.find((u) => String(u._id) === String(h.headUserId));
+    return {
       id: String(h._id),
       marketId: String(h.marketId),
       sectionId: h.sectionId ? String(h.sectionId) : null,
@@ -721,10 +714,28 @@ adminRouter.get('/houses', async (req, res) => {
       autoApproveMemberships: h.autoApproveMemberships,
       allowAssistants: h.allowAssistants,
       shopCount: h.shopCount,
-      head: h.headUserId ? { id: String(h.headUserId), fullName: heads.find((u) => String(u._id) === String(h.headUserId))?.fullName, phone: heads.find((u) => String(u._id) === String(h.headUserId))?.phone } : null,
-    })),
-    pageMeta(q.page, q.limit, total),
-  );
+      head: h.headUserId ? { id: String(h.headUserId), fullName: head?.fullName, phone: head?.phone } : null,
+    };
+  });
+}
+
+adminRouter.get('/houses', async (req, res) => {
+  const a = requireAuth(req);
+  const q = parse(paginationSchema.extend({ marketId: objectId.optional(), q: z.string().trim().max(40).optional(), headless: z.coerce.boolean().optional() }), req.query);
+  const filter: Record<string, unknown> = { ...marketScopeFilter(a) };
+  if (q.marketId) filter.marketId = q.marketId;
+  if (q.headless) filter.headUserId = null;
+  if (q.q) filter.houseNumber = new RegExp(escapeRegex(q.q), 'i');
+  const [items, total] = await Promise.all([House.find(filter).sort({ houseNumber: 1 }).skip(skipFor(q.page, q.limit)).limit(q.limit).lean(), House.countDocuments(filter)]);
+  paginated(res, await toAdminHouseRows(items), pageMeta(q.page, q.limit, total));
+});
+
+/** Administrative view of one house (head, trust settings), scoped for market managers. */
+adminRouter.get('/houses/:id', async (req, res) => {
+  const house = await House.findById(paramId(req.params.id)).lean();
+  if (!house) throw notFound('House');
+  assertMarketScope(req.auth, { marketId: house.marketId, sectionId: house.sectionId });
+  ok(res, (await toAdminHouseRows([house]))[0]);
 });
 
 /** Finds a user by email/phone for role or house-head assignment. */

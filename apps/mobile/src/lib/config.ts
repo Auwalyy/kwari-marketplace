@@ -19,5 +19,19 @@ function resolveApiUrl(): string {
 }
 
 export const API_URL = resolveApiUrl();
+
+/**
+ * Release builds must be given a real HTTPS API through EXPO_PUBLIC_API_URL (see apps/mobile/eas.json).
+ * When it is missing or still a placeholder, the app shows a configuration screen instead of failing
+ * every request with "No connection".
+ */
+export const API_CONFIG_ERROR: string | null = (() => {
+  if (__DEV__) return null;
+  const explicit = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (!explicit) return 'EXPO_PUBLIC_API_URL is not set for this build.';
+  if (/example\.com/i.test(explicit)) return `EXPO_PUBLIC_API_URL is still the placeholder (${explicit}).`;
+  if (!explicit.startsWith('https://')) return 'EXPO_PUBLIC_API_URL must use https:// in release builds.';
+  return null;
+})();
 export const API_V1 = `${API_URL}/api/v1`;
 export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? Constants.expoConfig?.extra?.eas?.projectId;

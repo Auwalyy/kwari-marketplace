@@ -14,7 +14,9 @@ import { formatDate, formatNaira, formatQuantity, unitLabel } from '@/lib/format
 
 export default function ProductDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { width } = useWindowDimensions();
+  const { width, height: screenHeight } = useWindowDimensions();
+  // Portrait 4:5 frame (fabric photos are usually portrait), capped so price and actions stay visible.
+  const galleryHeight = Math.min(width * 1.25, screenHeight * 0.55);
   const qc = useQueryClient();
   const requireAuth = useRequireAuth();
   const fav = useFavourites();
@@ -109,7 +111,7 @@ export default function ProductDetails() {
         showsHorizontalScrollIndicator={false}
         keyExtractor={(i) => i.id}
         onMomentumScrollEnd={(e) => setImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-        renderItem={({ item }) => <Image source={{ uri: item.url }} placeholder={{ uri: item.thumbnailUrl }} style={{ width, height: width }} contentFit="cover" transition={150} />}
+        renderItem={({ item }) => <Image source={{ uri: item.url }} placeholder={{ uri: item.thumbnailUrl }} style={{ width, height: galleryHeight }} contentFit="cover" className="bg-cream-200" transition={150} />}
         ListEmptyComponent={<View style={{ width, height: width * 0.6 }} className="items-center justify-center bg-cream-200"><Text className="text-ink-500">No photos</Text></View>}
       />
       {prod.images.length > 1 ? (
