@@ -7,21 +7,46 @@ You need three hosted services. None of them needs your own domain name:
 | --- | --- | --- |
 | API server | Render | `https://kantin-kwari-api.onrender.com` |
 | Database | MongoDB Atlas | `mongodb+srv://…mongodb.net` |
-| Product / shop images | Cloudflare R2 | `https://pub-xxxxxxxx.r2.dev` |
+| Product / shop images | Cloudinary (or Cloudflare R2) | `https://res.cloudinary.com/<cloud name>/…` |
 
 A custom domain (for example `api.kantinkwari.ng`) can be added later without changing any code. You only
 update the environment variables.
 
 ---
 
-## 1. Image storage: Cloudflare R2
+## 1. Image storage
 
 The API stores two kinds of files:
 
 - **Public images** (product photos, shop logos and covers, avatars). Anyone may view these, so they are
-  served straight from R2.
+  served straight from the storage service's CDN.
 - **Private files** (chat attachments). Only the people in the chat may see these. The API checks
   permission and hands out a link that expires after a few minutes.
+
+The API resizes images, removes location data and converts them to WebP itself before uploading. The
+storage service only stores and serves the files, so everything works the same on either option.
+
+### Option A (recommended): Cloudinary
+
+1. Sign up at cloudinary.com (the free plan is enough to start).
+2. Dashboard → **API Keys** (or **Programmable Media → Dashboard**). Copy the **API environment
+   variable**. It looks like `cloudinary://123456789012345:AbCdEf…@your-cloud-name`.
+3. Values for Render:
+
+   ```
+   STORAGE_PROVIDER=cloudinary
+   CLOUDINARY_URL=cloudinary://<api key>:<api secret>@<cloud name>
+   CLOUDINARY_FOLDER=kantin-kwari
+   ```
+
+Public images are served from `https://res.cloudinary.com/<cloud name>/…`. Chat attachments are uploaded
+as Cloudinary *private* assets: they have no public link, and the API hands out signed download links
+that expire after 5 minutes. Locally, use `CLOUDINARY_FOLDER=kantin-kwari-dev` so test uploads stay apart.
+
+Images uploaded before you switch providers keep their old links. Re-upload them, or re-run the seed in
+development.
+
+### Option B: Cloudflare R2
 
 On R2, turning on public access makes **the whole bucket** public. So you use **two buckets**:
 
@@ -57,15 +82,20 @@ STORAGE_PUBLIC_BASE_URL=https://pub-xxxxxxxx.r2.dev
 
 ## 2. Database: MongoDB Atlas
 
-1. **Database name.** Put the database name in the connection string, right after `.net/`:
+1. **Database name.** Without one, Atlas silently uses a database called `test`. Set it with
+   `MONGODB_DB_NAME`. This is the easiest way, and `render.yaml` already sets `kkdm`:
 
    ```
-   mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/kkdm?retryWrites=true&w=majority
+   MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/
+   MONGODB_DB_NAME=kkdm
    ```
 
-   Without it, Atlas silently uses a database called `test`. Use `kkdm` for production. Use a different
-   name locally (for example `kkdm_dev`) so `npm run seed` never touches real data. The seed script
-   refuses to run with `NODE_ENV=production`.
+   You can also put the name in the connection string, right after `.net/`:
+   `…mongodb.net/kkdm?retryWrites=true&w=majority`. You don't have to create the database in Atlas
+   first. It appears automatically the first time the API saves something.
+
+   Use a different name locally (for example `MONGODB_DB_NAME=kkdm_dev`) so `npm run seed` never touches
+   real data. The seed script refuses to run with `NODE_ENV=production`.
 2. **Database user.** Atlas → **Database Access** → create a user with a long random password (letters and
    digits only, so it needs no URL-escaping) and the role **Read and write to any database**.
 3. **Network access.** Atlas → **Network Access** → **Add IP Address**. Render's outbound IPs are listed
@@ -75,9 +105,10 @@ STORAGE_PUBLIC_BASE_URL=https://pub-xxxxxxxx.r2.dev
    production only for this run:
 
    ```powershell
-   $env:MONGODB_URI = "mongodb+srv://…/kkdm?retryWrites=true&w=majority"
+   $env:MONGODB_URI = "mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/"
+   $env:MONGODB_DB_NAME = "kkdm"
    npm run db:indexes
-   Remove-Item Env:MONGODB_URI
+   Remove-Item Env:MONGODB_URI, Env:MONGODB_DB_NAME
    ```
 
 ## 3. Deploy the API on Render
@@ -90,8 +121,9 @@ and shared packages (not the Expo app), compiles TypeScript, runs `node apps/api
    **Never commit `.env`.**
 2. On render.com: **New +** → **Blueprint** → connect GitHub → choose this repository.
 3. Render reads `render.yaml` and asks for each value marked `sync: false`:
-   - `MONGODB_URI`: from step 2 (with `/kkdm`).
-   - The `STORAGE_*` values from step 1.
+   - `MONGODB_URI`: from step 2. `MONGODB_DB_NAME=kkdm` is already set by `render.yaml`.
+   - `CLOUDINARY_URL` from step 1. If you chose R2, change `STORAGE_PROVIDER` to `s3` and add the
+     `STORAGE_*` values instead.
    - `API_BASE_URL`: enter `https://kantin-kwari-api.onrender.com`. If Render gives the service a
      different URL (shown at the top of the service page), change this value to match and redeploy.
 
@@ -107,9 +139,10 @@ and shared packages (not the Expo app), compiles TypeScript, runs `node apps/api
 6. Create your administrator account from your computer, against production:
 
    ```powershell
-   $env:MONGODB_URI = "mongodb+srv://…/kkdm?retryWrites=true&w=majority"
+   $env:MONGODB_URI = "mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/"
+   $env:MONGODB_DB_NAME = "kkdm"
    npm run admin:create -w @kkdm/api -- --email you@example.com --name "Your Name" --password "a-strong-password"
-   Remove-Item Env:MONGODB_URI
+   Remove-Item Env:MONGODB_URI, Env:MONGODB_DB_NAME
    ```
 
 **Plan:** `render.yaml` uses **Starter**. The free plan sleeps after 15 minutes without traffic. That

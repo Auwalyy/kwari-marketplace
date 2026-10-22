@@ -5,6 +5,7 @@
  */
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { TAGLINE, WORDMARK } from './brand-lettering.mjs';
 
 const require = createRequire(path.resolve('apps/api/package.json'));
 const sharp = require('sharp');
@@ -65,6 +66,23 @@ function monoMotif(scale) {
   </g>`;
 }
 
+/** Lettering path placed with its drawn extent centred on x = 512 and its baseline at `baseline`. */
+function lettering({ d, bbox }, baseline, fill, weight = 0) {
+  const stroke = weight ? ` stroke="${fill}" stroke-width="${weight}" stroke-linejoin="round"` : '';
+  return `<path transform="translate(${(512 - bbox.x - bbox.w / 2).toFixed(1)} ${baseline})" d="${d}" fill="${fill}"${stroke}/>`;
+}
+
+function splashArt() {
+  // Motif centred at (512, 330), 55% size: the bolt spans roughly y 156–504.
+  const bolt = `<g transform="translate(0 -182) translate(512 512) scale(0.55) translate(-512 -512)">${motif()}</g>`;
+  const zigzag = Array.from({ length: 9 }, (_, i) => `${412 + i * 25} ${i % 2 ? 724 : 736}`).join(' L');
+  return `
+  ${bolt}
+  ${lettering(WORDMARK, 676, CREAM)}
+  <path d="M${zigzag}" stroke="${GOLD_LIGHT}" stroke-width="5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+  ${lettering(TAGLINE, 800, GOLD_LIGHT, 1.6)}`;
+}
+
 const svg = (body, bg) =>
   Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${bg ? `<rect width="1024" height="1024" fill="${bg}"/>` : ''}${body}</svg>`);
 
@@ -79,6 +97,7 @@ await write('icon.png', svg(motif({ scale: 1.25 }), GREEN));
 await write('android-icon-background.png', svg('', GREEN));
 await write('android-icon-foreground.png', svg(motif({ scale: 0.95 })));
 await write('android-icon-monochrome.png', svg(monoMotif(0.95)));
-// Splash image (shown centred on the green splash background).
-await write('splash-icon.png', svg(motif({ scale: 0.9 })), 512);
+// Splash image (shown centred on the green splash background, see imageWidth in app.json): the fabric
+// bolt above the "Kantin Kwari" wordmark, a gold zigzag rule (the fabric's weave) and the tagline.
+await write('splash-icon.png', svg(splashArt()), 1024);
 await write('favicon.png', svg(motif({ scale: 1.35 }), GREEN), 64);

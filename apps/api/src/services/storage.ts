@@ -7,7 +7,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { env } from '../config/env';
+import { v2 as cloudinary } from 'cloudinary';
+import { env, parseCloudinaryUrl } from '../config/env';
 import { badRequest } from '../utils/http';
 
 export type Visibility = 'public' | 'private';
@@ -107,14 +108,82 @@ class S3Storage implements StorageProvider {
   }
 }
 
+/**
+ * Cloudinary. Every stored object is an already-processed WebP image, uploaded unchanged. Keys under
+ * public/ are ordinary delivery assets (`upload` type). Keys under private/ use the `private` type: their
+ * original can only be fetched through a signed download URL that expires.
+ */
+export class CloudinaryStorage implements StorageProvider {
+  readonly name = 'cloudinary';
+  constructor(
+    private readonly client: typeof cloudinary,
+    private readonly folder: string,
+  ) {}
+
+  /** `public/products/a/b.webp` → public id `<folder>/public/products/a/b` + format `webp`. */
+  private asset(key: string) {
+    assertSafeKey(key);
+    const dot = key.lastIndexOf('.');
+    if (dot <= key.lastIndexOf('/')) throw badRequest('Invalid storage key');
+    const prefix = this.folder.replace(/^\/+|\/+$/g, '');
+    return {
+      publicId: `${prefix ? `${prefix}/` : ''}${key.slice(0, dot)}`,
+      format: key.slice(dot + 1),
+      type: key.startsWith('private/') ? ('private' as const) : ('upload' as const),
+    };
+  }
+  async put(key: string, body: Buffer) {
+    const { publicId, type } = this.asset(key);
+    await new Promise<void>((resolve, reject) => {
+      this.client.uploader
+        .upload_stream(
+          { public_id: publicId, resource_type: 'image', type, overwrite: true, invalidate: true, unique_filename: false, use_filename: false },
+          (err) => (err ? reject(new Error(`Cloudinary upload failed: ${err.message}`)) : resolve()),
+        )
+        .end(body);
+    });
+  }
+  async get(key: string) {
+    const { type } = this.asset(key);
+    const url = type === 'private' ? this.privateDownloadUrl(key, 60) : this.publicUrl(key);
+    const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`Cloudinary download failed: HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+  async delete(key: string) {
+    const { publicId, type } = this.asset(key);
+    await this.client.uploader.destroy(publicId, { resource_type: 'image', type, invalidate: true });
+  }
+  publicUrl(key: string) {
+    const { publicId, format } = this.asset(key);
+    return this.client.url(publicId, { resource_type: 'image', type: 'upload', format, secure: true, urlAnalytics: false });
+  }
+  private privateDownloadUrl(key: string, ttlSeconds: number) {
+    const { publicId, format } = this.asset(key);
+    return this.client.utils.private_download_url(publicId, format, {
+      resource_type: 'image',
+      type: 'private',
+      expires_at: Math.floor(Date.now() / 1000) + ttlSeconds,
+    });
+  }
+  async signedUrl(key: string, ttlSeconds: number) {
+    return this.privateDownloadUrl(key, ttlSeconds);
+  }
+}
+
+function cloudinaryStorage() {
+  const creds = parseCloudinaryUrl(env.CLOUDINARY_URL)!;
+  cloudinary.config({ cloud_name: creds.cloudName, api_key: creds.apiKey, api_secret: creds.apiSecret, secure: true });
+  return new CloudinaryStorage(cloudinary, env.CLOUDINARY_FOLDER);
+}
+
 let instance: StorageProvider | null = null;
 
 export function storage(): StorageProvider {
   if (!instance) {
-    instance =
-      env.STORAGE_PROVIDER === 's3'
-        ? new S3Storage(env.STORAGE_BUCKET!, env.STORAGE_PRIVATE_BUCKET ?? env.STORAGE_BUCKET!)
-        : new LocalStorage(path.resolve(process.cwd(), env.STORAGE_LOCAL_DIR));
+    if (env.STORAGE_PROVIDER === 's3') instance = new S3Storage(env.STORAGE_BUCKET!, env.STORAGE_PRIVATE_BUCKET ?? env.STORAGE_BUCKET!);
+    else if (env.STORAGE_PROVIDER === 'cloudinary') instance = cloudinaryStorage();
+    else instance = new LocalStorage(path.resolve(process.cwd(), env.STORAGE_LOCAL_DIR));
   }
   return instance;
 }

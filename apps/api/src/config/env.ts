@@ -47,6 +47,8 @@ const schema = z.object({
   PORT: num(z.coerce.number().int().default(4000)),
   API_BASE_URL: z.string().default('http://localhost:4000'),
   MONGODB_URI: emptyToUndefined,
+  /** Database name. Overrides the name in MONGODB_URI; without either, Atlas uses a database called "test". */
+  MONGODB_DB_NAME: emptyToUndefined,
   /** Set to false for standalone MongoDB servers that do not support multi-document transactions. */
   MONGODB_TRANSACTIONS: bool(true),
   /**
@@ -62,7 +64,7 @@ const schema = z.object({
   CORS_ALLOWED_ORIGINS: csv,
   TRUST_PROXY: z.string().optional().default('loopback'),
 
-  STORAGE_PROVIDER: z.enum(['local', 's3']).default('local'),
+  STORAGE_PROVIDER: z.enum(['local', 's3', 'cloudinary']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('uploads'),
   STORAGE_PUBLIC_BASE_URL: emptyToUndefined,
   STORAGE_BUCKET: emptyToUndefined,
@@ -76,6 +78,10 @@ const schema = z.object({
   STORAGE_ACCESS_KEY: emptyToUndefined,
   STORAGE_SECRET_KEY: emptyToUndefined,
   STORAGE_FORCE_PATH_STYLE: bool(false),
+  /** Cloudinary: the "API environment variable" from the dashboard, cloudinary://<key>:<secret>@<cloud name>. */
+  CLOUDINARY_URL: emptyToUndefined,
+  /** Folder every file goes under, so development and production uploads stay apart in one account. */
+  CLOUDINARY_FOLDER: z.string().default('kantin-kwari'),
 
   IMAGE_EMBEDDING_PROVIDER: z.enum(['none', 'jina', 'cohere', 'local-baseline']).default('none'),
   IMAGE_EMBEDDING_API_KEY: emptyToUndefined,
@@ -137,6 +143,18 @@ function load(): Env {
 export const env = load();
 
 /** Validates settings required to actually serve traffic; called at server start, not at import. */
+/** Splits cloudinary://<api key>:<api secret>@<cloud name>; null when missing or malformed. */
+export function parseCloudinaryUrl(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const u = new URL(value.trim());
+    if (u.protocol !== 'cloudinary:' || !u.username || !u.password || !u.hostname) return null;
+    return { cloudName: u.hostname, apiKey: decodeURIComponent(u.username), apiSecret: decodeURIComponent(u.password) };
+  } catch {
+    return null;
+  }
+}
+
 export function assertRuntimeConfig(e: Env = env): void {
   const problems: string[] = [];
   if (!e.MONGODB_URI) problems.push('MONGODB_URI is required');
@@ -149,8 +167,11 @@ export function assertRuntimeConfig(e: Env = env): void {
   if (e.STORAGE_PROVIDER === 's3' && (!e.STORAGE_BUCKET || !e.STORAGE_ACCESS_KEY || !e.STORAGE_SECRET_KEY)) {
     problems.push('STORAGE_BUCKET, STORAGE_ACCESS_KEY and STORAGE_SECRET_KEY are required when STORAGE_PROVIDER=s3');
   }
+  if (e.STORAGE_PROVIDER === 'cloudinary' && !parseCloudinaryUrl(e.CLOUDINARY_URL)) {
+    problems.push('CLOUDINARY_URL is required when STORAGE_PROVIDER=cloudinary, in the form cloudinary://<api key>:<api secret>@<cloud name>');
+  }
   if (e.NODE_ENV === 'production') {
-    if (e.STORAGE_PROVIDER === 'local') problems.push('STORAGE_PROVIDER=local is not allowed in production; configure s3');
+    if (e.STORAGE_PROVIDER === 'local') problems.push('STORAGE_PROVIDER=local is not allowed in production; configure cloudinary or s3');
     if (e.STORAGE_PROVIDER === 's3' && e.STORAGE_ENDPOINT && !e.STORAGE_PUBLIC_BASE_URL) {
       // R2 / Spaces / MinIO API endpoints are not publicly readable; images need a public domain or CDN URL.
       problems.push('STORAGE_PUBLIC_BASE_URL is required with a custom STORAGE_ENDPOINT (e.g. your R2 public bucket URL or custom domain)');

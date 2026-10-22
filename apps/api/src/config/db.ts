@@ -18,8 +18,12 @@ export async function connectDatabase(uri = env.MONGODB_URI): Promise<typeof mon
     serverSelectionTimeoutMS: 10_000,
     maxPoolSize: 20,
     autoIndex: env.NODE_ENV !== 'production',
+    ...(env.MONGODB_DB_NAME ? { dbName: env.MONGODB_DB_NAME } : {}),
   });
   logger.info({ host: conn.connection.host, db: conn.connection.name }, 'MongoDB connected');
+  if (env.NODE_ENV === 'production' && conn.connection.name === 'test') {
+    logger.warn('Connected to the default "test" database. Set MONGODB_DB_NAME (e.g. kkdm) or add /kkdm to MONGODB_URI.');
+  }
   return conn;
 }
 
