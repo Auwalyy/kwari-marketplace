@@ -87,6 +87,11 @@ export async function requireShopAccess(
   return access;
 }
 
+/** Money figures (cost prices, profit, expenses, debts) are for the owner and staff given finance access. */
+export function canSeeFinance(access: Pick<ShopAccess, 'isOwner' | 'permissions'>) {
+  return access.isOwner || access.permissions.includes('finance.view');
+}
+
 export async function hasShopPermission(auth: AuthContext | undefined, shopId: string, permission: ShopPermission) {
   if (!auth) return false;
   const access = await getShopAccess(auth.userId, shopId).catch(() => null);

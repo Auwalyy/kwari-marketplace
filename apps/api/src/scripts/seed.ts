@@ -29,7 +29,9 @@ import { slugify } from '../utils/http';
 import { recountHouseShops } from '../modules/houses/house.service';
 import { recountShopProducts } from '../modules/shops/shop.service';
 import { ensureReferenceData } from './reference-data';
-import { DEMO_EMAIL_DOMAIN, DEMO_HOUSE_MARKER, DEMO_SECTIONS } from './demo-data';
+import { DEMO_EMAIL, DEMO_EMAIL_DOMAIN, DEMO_HOUSE_MARKER, DEMO_SECTIONS } from './demo-data';
+import { ShopExpense, ShopSale } from '../modules/books/books.models';
+import { recordSale } from '../modules/books/books.service';
 
 const LIVE = process.argv.includes('--live');
 /** Fixed in development for convenience; random on a live server, where the source code is no secret. */
@@ -40,9 +42,13 @@ const demoEmail = (name: string) => `${name}@${DEMO_EMAIL_DOMAIN}`;
 const ASSETS = path.resolve(__dirname, 'seed-assets', 'sheradom');
 const asset = (name: string) => fs.readFile(path.join(ASSETS, `${name}.jpg`));
 
+/** Demo accounts this run created; ones that already existed keep their earlier password. */
+const createdAccounts: string[] = [];
+
 async function user(fullName: string, email: string, extra: Record<string, unknown> = {}) {
   const existing = await User.findOne({ email });
   if (existing) return existing;
+  createdAccounts.push(email);
   return User.create({ fullName: `[DEMO] ${fullName}`, email, emailVerified: true, passwordHash: await hashPassword(DEMO_PASSWORD), ...extra });
 }
 
@@ -83,6 +89,55 @@ const CATALOGUE: Record<string, ProductSeed[]> = {
     { photo: 'lime-crackle', name: 'Sheradom Bazin Riche — Lime Crackle (30 m piece)', colour: 'lime', colours: ['green', 'lime'], pattern: 'crackle', retail: 125000, wholesale: [115000, 5], unit: 'roll', stock: 0 },
   ],
 };
+
+/**
+ * A few weeks of shop bookkeeping so the Money, Sales book and advice screens have something to show:
+ * cost prices on the demo fabrics, in-shop sales (one on credit) and running costs. Only for shops that
+ * have no sales yet, so running the seed again adds nothing.
+ */
+async function seedBooks() {
+  const DAY = 86_400_000;
+  const demoOwners = (await User.find({ email: DEMO_EMAIL }).select('_id')).map((u) => u._id);
+  const shops = await Shop.find({ ownerId: { $in: demoOwners } });
+  for (const shop of shops) {
+    // Cost prices: about 82% of the retail price, rounded to ₦50.
+    const products = await Product.find({ shopId: shop._id });
+    for (const p of products) {
+      if (p.costPriceKobo == null) await Product.updateOne({ _id: p._id }, { $set: { costPriceKobo: Math.round((p.retailPriceKobo * 0.82) / 5000) * 5000 } });
+    }
+    if (await ShopSale.exists({ shopId: shop._id })) continue;
+    const ownerId = String(shop.ownerId);
+    const stocked = (await Product.find({ shopId: shop._id, stockQuantity: { $gt: 10 }, unit: { $ne: 'roll' } })).slice(0, 3);
+    if (!stocked.length) continue;
+    const plan: { daysAgo: number; items: { p: number; q: number }[]; credit?: [string, number]; method: 'cash' | 'transfer' | 'pos' }[] = [
+      { daysAgo: 12, items: [{ p: 0, q: 6 }], method: 'cash' },
+      { daysAgo: 9, items: [{ p: 1, q: 4 }, { p: 0, q: 2 }], method: 'transfer' },
+      { daysAgo: 6, items: [{ p: 0, q: 30 }], method: 'transfer' },
+      { daysAgo: 4, items: [{ p: 2, q: 5 }], credit: ['Malam Bello (demo)', 0.5], method: 'cash' },
+      { daysAgo: 2, items: [{ p: 1, q: 8 }], method: 'pos' },
+      { daysAgo: 0, items: [{ p: 0, q: 3 }], method: 'cash' },
+    ];
+    for (const s of plan) {
+      const items = s.items.filter((i) => stocked[i.p]).map((i) => ({ productId: String(stocked[i.p]._id), quantity: i.q }));
+      if (!items.length) continue;
+      const soldAt = new Date(Date.now() - s.daysAgo * DAY - 3 * 3600_000);
+      let paid: number | undefined;
+      if (s.credit) {
+        const fresh = await Product.find({ _id: { $in: items.map((i) => i.productId) } }).lean();
+        const total = items.reduce((sum, i) => sum + (fresh.find((f) => String(f._id) === i.productId)!.retailPriceKobo * i.quantity), 0);
+        paid = Math.round(total * s.credit[1]);
+      }
+      await recordSale(shop._id, ownerId, { items, discountKobo: 0, amountPaidKobo: paid, paymentMethod: s.method, customerName: s.credit?.[0], soldAt, note: 'Demo sale (sample data)' });
+    }
+    for (const [daysAgo, category, naira, note] of [
+      [11, 'market_levy', 2500, 'Monthly market dues (sample)'],
+      [5, 'transport', 1500, 'Keke to the bus park (sample)'],
+      [1, 'utilities', 4000, 'Generator fuel (sample)'],
+    ] as const) {
+      await ShopExpense.create({ shopId: shop._id, category, amountKobo: naira * 100, method: 'cash', spentAt: new Date(Date.now() - daysAgo * DAY), note, recordedBy: shop.ownerId });
+    }
+  }
+}
 
 async function main() {
   if (env.NODE_ENV === 'production' && !LIVE) throw new Error('Refusing to seed demo data in production (use --live to add removable demo shops)');
@@ -233,12 +288,13 @@ async function main() {
     await recountShopProducts(shop._id);
   }
   for (const h of Object.values(houses)) await recountHouseShops(h._id);
+  await seedBooks();
 
   // A worker for the first shop and two customers.
   const worker = await user('Musa (Shop Worker)', demoEmail('worker'));
   const firstShop = await Shop.findOne({ slug: slugify('Alhaji Sani Textiles') });
   if (firstShop && !(await ShopMembership.exists({ shopId: firstShop._id, userId: worker._id, status: 'active' }))) {
-    await ShopMembership.create({ shopId: firstShop._id, userId: worker._id, role: 'worker', permissions: ['products.manage', 'inventory.manage', 'chats.manage'], title: 'Sales assistant', addedBy: firstShop.ownerId });
+    await ShopMembership.create({ shopId: firstShop._id, userId: worker._id, role: 'worker', permissions: ['products.manage', 'inventory.manage', 'chats.manage', 'sales.record'], title: 'Sales assistant', addedBy: firstShop.ownerId });
   }
   await user('Aisha (Customer)', demoEmail('customer1'), { phone: '+2348030000001' });
   await user('Emeka (Wholesale buyer)', demoEmail('customer2'));
@@ -251,13 +307,17 @@ async function main() {
       if (!n) break;
     }
   }
-  const accounts = [...(LIVE ? [] : ['admin', 'manager']), 'head1', 'head2', 'owner1', 'owner2', 'owner3', 'owner4', 'worker', 'customer1', 'customer2'].map(demoEmail);
-  logger.info(
-    { database: mongoose.connection.name, password: DEMO_PASSWORD, accounts, embeddingsProcessed: processed },
-    LIVE
-      ? 'Demo data added in live mode (check "database" above is the one you meant). New demo accounts use the password shown (it is not stored anywhere else); accounts that already existed keep their old password. Remove it all with: npm run demo:remove -- --confirm'
-      : 'Development seed complete — all demo accounts share the password shown',
-  );
+  const database = mongoose.connection.name;
+  if (!createdAccounts.length) {
+    logger.info({ database, embeddingsProcessed: processed }, 'Demo data is in place. No new demo accounts were needed, so they keep the password from the run that created them');
+  } else {
+    logger.info(
+      { database, password: DEMO_PASSWORD, accounts: createdAccounts, embeddingsProcessed: processed },
+      LIVE
+        ? 'Demo data added in live mode (check "database" is the one you meant). The new accounts listed use the password shown, which is not stored anywhere else. Remove it all with: npm run demo:remove -- --confirm'
+        : 'Development seed complete — the new demo accounts listed use the password shown',
+    );
+  }
   await disconnectDatabase();
 }
 

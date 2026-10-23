@@ -11,6 +11,7 @@ import { AuditLog } from '../src/modules/admin/admin.models';
 import { Shop } from '../src/modules/shops/shop.models';
 import { House } from '../src/modules/markets/market.models';
 import { notify } from '../src/modules/notifications/notify';
+import { setStorageProvider, storage } from '../src/services/storage';
 
 useTestDatabase();
 
@@ -169,6 +170,21 @@ describe('real-time chat', () => {
     const outsider = await registerUser();
     expect((await api().get(path).set(auth(outsider))).status).toBe(403);
     expect((await api().get(path)).status).toBe(401);
+  });
+
+  it('sends chat images directly even when storage can sign links (no redirect for phones to mishandle)', async () => {
+    const real = storage();
+    // Cloud storage that could hand out signed links; the API must still answer with the image itself.
+    setStorageProvider({ ...real, name: 's3', put: real.put.bind(real), get: real.get.bind(real), delete: real.delete.bind(real), publicUrl: real.publicUrl.bind(real), signedUrl: async () => 'https://storage.example/signed' });
+    try {
+      const up = await api().post(`/api/v1/conversations/${conversationId}/images`).set(auth(customer)).field('clientMessageId', 'img-000002').attach('image', await fabricImage([[9, 9, 9], [90, 10, 50]]), 'photo.png');
+      const res = await api().get(up.body.data.imageUrl).set(auth(shop.owner));
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('image/webp');
+      expect(res.headers.location).toBeUndefined();
+    } finally {
+      setStorageProvider(real);
+    }
   });
 });
 

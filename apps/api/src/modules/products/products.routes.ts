@@ -19,7 +19,8 @@ import { Order } from '../orders/order.models';
 import { authenticate, optionalAuth, requireAuth } from '../../middleware/auth';
 import { imageUpload } from '../../middleware/upload';
 import { uploadLimiter, writeLimiter } from '../../middleware/rateLimit';
-import { getShopAccess, isAdmin, requireShopAccess } from '../../services/access';
+import { canSeeFinance, getShopAccess, isAdmin, requireShopAccess, type ShopAccess } from '../../services/access';
+import { ShopExpense } from '../books/books.models';
 import { audit } from '../../services/audit';
 import { notifyShopStaff } from '../notifications/notify';
 import { processUploadedImage } from '../../services/images';
@@ -66,11 +67,21 @@ shopProductsRouter.get('/', async (req, res) => {
 shopProductsRouter.get('/:productId', async (req, res) => {
   const a = requireAuth(req);
   const shopId = parentId(req, 'shopId');
-  await requireShopAccess(a, shopId, 'any', { allowSuspended: true });
+  const access = await requireShopAccess(a, shopId, 'any', { allowSuspended: true });
   const p = await Product.findOne({ _id: paramId(req.params.productId), shopId });
   if (!p) throw notFound('Product');
-  ok(res, { ...(await toProductDto(p.toObject() as any)), moderationStatus: p.moderationStatus, moderationReason: p.moderationReason });
+  ok(res, await staffProductDto(p, access));
 });
+
+/** Product as shop staff see it: moderation state, plus the cost price for finance staff. */
+async function staffProductDto(p: ProductDoc, access: Pick<ShopAccess, 'isOwner' | 'permissions'>) {
+  return {
+    ...(await toProductDto(p.toObject() as any)),
+    moderationStatus: p.moderationStatus,
+    moderationReason: p.moderationReason,
+    ...(canSeeFinance(access) ? { costPriceKobo: p.costPriceKobo ?? null } : {}),
+  };
+}
 
 async function assertCategory(categoryId: string) {
   if (!(await Category.exists({ _id: categoryId, active: true }))) throw badRequest('Choose a valid category', 'INVALID_CATEGORY');
@@ -82,8 +93,10 @@ function assertPublishable(p: ProductDoc) {
 
 shopProductsRouter.post('/', writeLimiter, async (req, res) => {
   const a = requireAuth(req);
-  const { shop } = await requireShopAccess(a, parentId(req, 'shopId'), 'products.manage');
+  const access = await requireShopAccess(a, parentId(req, 'shopId'), 'products.manage');
+  const { shop } = access;
   const input = parse(productCreateSchema, req.body);
+  if (!canSeeFinance(access)) delete input.costPriceKobo;
   await assertCategory(input.categoryId);
   if (!shop.enabledUnits.includes(input.unit)) throw badRequest(`Your shop has not enabled the unit "${input.unit}"`, 'UNIT_NOT_ENABLED');
   // Products can be created as drafts before approval but are only published once they have images.
@@ -106,7 +119,7 @@ shopProductsRouter.post('/', writeLimiter, async (req, res) => {
     await InventoryMovement.create({ productId: p._id, shopId: shop._id, delta: p.stockQuantity, balanceAfter: p.stockQuantity, reason: 'initial', actorId: a.userId });
   }
   await audit({ req, action: 'product.created', category: 'product', targetType: 'product', targetId: p._id, shopId: shop._id });
-  ok(res, await toProductDto(p.toObject() as any), 201);
+  ok(res, await staffProductDto(p, access), 201);
 });
 
 shopProductsRouter.patch('/:productId', writeLimiter, async (req, res) => {
@@ -115,6 +128,7 @@ shopProductsRouter.patch('/:productId', writeLimiter, async (req, res) => {
   const p = await Product.findOne({ _id: paramId(req.params.productId), shopId: access.shop._id });
   if (!p) throw notFound('Product');
   const input = parse(productUpdateSchema, req.body);
+  if (!canSeeFinance(access)) delete input.costPriceKobo;
   // Stock levels change only through the inventory endpoint so every movement is recorded.
   if (input.stockQuantity !== undefined && input.stockQuantity !== p.stockQuantity) {
     throw badRequest('Use inventory adjustments to change stock levels', 'USE_INVENTORY_ENDPOINT');
@@ -147,7 +161,7 @@ shopProductsRouter.patch('/:productId', writeLimiter, async (req, res) => {
   await syncProductEmbeddingFilters(p._id);
   await recountShopProducts(p.shopId);
   await audit({ req, action: 'product.updated', category: 'product', targetType: 'product', targetId: p._id, shopId: p.shopId, metadata: { fields: Object.keys(input) } });
-  ok(res, await toProductDto(p.toObject() as any));
+  ok(res, await staffProductDto(p, access));
 });
 
 /** Archives a product. Drafts that were never ordered can be permanently deleted with ?permanent=true. */
@@ -302,9 +316,12 @@ shopProductsRouter.post('/:productId/images/retry-embeddings', async (req, res) 
 
 shopProductsRouter.post('/:productId/inventory', writeLimiter, async (req, res) => {
   const a = requireAuth(req);
-  const { shop } = await requireShopAccess(a, parentId(req, 'shopId'), 'inventory.manage');
+  const access = await requireShopAccess(a, parentId(req, 'shopId'), 'inventory.manage');
+  const { shop } = access;
   const input = parse(inventoryAdjustSchema, req.body);
   const productId = paramId(req.params.productId);
+  const finance = canSeeFinance(access);
+  if (input.unitCostKobo !== undefined && (input.reason !== 'restock' || input.delta <= 0)) throw badRequest('A cost can only be given when adding stock', 'COST_ONLY_ON_RESTOCK');
   const p = await Product.findOne({ _id: productId, shopId: shop._id });
   if (!p) throw notFound('Product');
   if (p.variants.length && !input.variantId) throw badRequest('Choose which variant to adjust', 'VARIANT_REQUIRED');
@@ -340,6 +357,24 @@ shopProductsRouter.post('/:productId/inventory', writeLimiter, async (req, res) 
     note: input.note,
     actorId: a.userId,
   });
+  if (finance && input.unitCostKobo !== undefined) {
+    // Weighted average: what is already on the shelf keeps its cost, the new stock adds its own.
+    const before = updated.stockQuantity - input.delta;
+    const avg = updated.costPriceKobo != null && before > 0 ? Math.round((before * updated.costPriceKobo + input.delta * input.unitCostKobo) / (before + input.delta)) : input.unitCostKobo;
+    updated.costPriceKobo = avg;
+    await Product.updateOne({ _id: updated._id }, { $set: { costPriceKobo: avg } });
+    if (input.recordExpense) {
+      await ShopExpense.create({
+        shopId: shop._id,
+        category: 'stock_purchase',
+        amountKobo: Math.round(input.unitCostKobo * input.delta),
+        spentAt: new Date(),
+        note: `${input.delta} × ${updated.name}`,
+        productId: updated._id,
+        recordedBy: a.userId,
+      });
+    }
+  }
   await syncProductEmbeddingFilters(p._id);
   await audit({ req, action: 'inventory.adjusted', category: 'product', targetType: 'product', targetId: p._id, shopId: shop._id, metadata: { delta: input.delta, reason: input.reason } });
   if (updated.stockStatus === 'out_of_stock' && prevStatus !== 'out_of_stock') {
@@ -350,7 +385,7 @@ shopProductsRouter.post('/:productId/inventory', writeLimiter, async (req, res) 
       data: { shopId: String(shop._id), productId: String(p._id) },
     });
   }
-  ok(res, await toProductDto(updated.toObject() as any));
+  ok(res, await staffProductDto(updated, access));
 });
 
 shopProductsRouter.get('/:productId/inventory', async (req, res) => {

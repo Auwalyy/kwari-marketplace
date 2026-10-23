@@ -9,7 +9,7 @@ import { Badge, Body, Button, Card, ChoiceChips, ErrorState, IconButton, ImagePi
 import { colors } from '@/constants/theme';
 import { api } from '@/lib/api';
 import { useDerivedState } from '@/hooks/useDerivedState';
-import { koboToNairaInput, nairaInputToKobo } from '@/lib/format';
+import { formatNaira, koboToNairaInput, nairaInputToKobo } from '@/lib/format';
 
 interface VariantForm {
   id?: string;
@@ -22,19 +22,31 @@ interface VariantForm {
 
 const EMBED_LABEL = { pending: ['Search indexing queued', 'warning'], processing: ['Indexing…', 'info'], ready: ['Visual search ready', 'success'], failed: ['Indexing failed', 'danger'], disabled: ['Visual search off', 'neutral'] } as const;
 
+/** "You make ₦1,500 (30%) per yard" — or a warning when the price is below cost. Private to the owner. */
+function profitHint(retail: string, cost: string, unit: string) {
+  const r = nairaInputToKobo(retail);
+  const c = nairaInputToKobo(cost);
+  if (r == null || c == null) return 'Private — customers never see it. Used to work out your profit.';
+  const margin = r - c;
+  if (margin < 0) return `Warning: you lose ${formatNaira(-margin)} on every ${unit} at this price.`;
+  return `You make ${formatNaira(margin)} per ${unit}${r > 0 ? ` (${Math.round((margin / r) * 100)}%)` : ''}. Private — customers never see it.`;
+}
+
 /** Add / edit a product. Stock changes after creation go through the inventory screen (audited). */
 export default function ProductEditor() {
   const { shopId, productId } = useLocalSearchParams<{ shopId: string; productId: string }>();
   const isNew = productId === 'new';
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const shop = useQuery({ queryKey: ['shop', shopId], queryFn: () => api.get<ShopDto>(`/shops/${shopId}`) });
+  const shop = useQuery({ queryKey: ['shop', shopId], queryFn: () => api.get<ShopDto & { viewerRole?: 'owner' | 'worker'; viewerPermissions?: string[] }>(`/shops/${shopId}`) });
+  // Cost price is private: only the owner and staff with finance access see or set it.
+  const finance = shop.data?.viewerRole === 'owner' || !!shop.data?.viewerPermissions?.includes('finance.view');
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<CategoryDto[]>('/categories') });
   const product = useQuery({ queryKey: ['seller-product', productId], queryFn: () => api.get<ProductDto & { moderationStatus: string; moderationReason?: string }>(`/shops/${shopId}/products/${productId}`), enabled: !isNew });
   const [f, setF] = useDerivedState(
     product.data,
-    (p) => ({ name: p.name, description: p.description ?? '', categoryId: p.categoryId, subcategory: p.subcategory ?? '', retail: koboToNairaInput(p.retailPriceKobo), wholesale: koboToNairaInput(p.wholesalePriceKobo), wholesaleMin: p.wholesaleMinQuantity ? String(p.wholesaleMinQuantity) : '', minOrder: String(p.minOrderQuantity), unit: p.unit, stock: String(p.stockQuantity), lowStock: String(p.lowStockThreshold), trackInventory: p.trackInventory, material: p.material ?? '', brand: p.brand ?? '', colours: p.colours.join(', '), patterns: p.patterns.join(', '), keywords: p.keywords.join(', ') }),
-    { name: '', description: '', categoryId: '', subcategory: '', retail: '', wholesale: '', wholesaleMin: '', minOrder: '1', unit: 'yard' as MeasurementUnit, stock: '0', lowStock: '5', trackInventory: true, material: '', brand: '', colours: '', patterns: '', keywords: '' },
+    (p) => ({ name: p.name, description: p.description ?? '', categoryId: p.categoryId, subcategory: p.subcategory ?? '', retail: koboToNairaInput(p.retailPriceKobo), wholesale: koboToNairaInput(p.wholesalePriceKobo), wholesaleMin: p.wholesaleMinQuantity ? String(p.wholesaleMinQuantity) : '', cost: koboToNairaInput(p.costPriceKobo), minOrder: String(p.minOrderQuantity), unit: p.unit, stock: String(p.stockQuantity), lowStock: String(p.lowStockThreshold), trackInventory: p.trackInventory, material: p.material ?? '', brand: p.brand ?? '', colours: p.colours.join(', '), patterns: p.patterns.join(', '), keywords: p.keywords.join(', ') }),
+    { name: '', description: '', categoryId: '', subcategory: '', retail: '', wholesale: '', wholesaleMin: '', cost: '', minOrder: '1', unit: 'yard' as MeasurementUnit, stock: '0', lowStock: '5', trackInventory: true, material: '', brand: '', colours: '', patterns: '', keywords: '' },
   );
   const [variants, setVariants] = useDerivedState<ProductDto, VariantForm[]>(product.data, (p) => p.variants.map((v) => ({ id: v.id, label: v.label, colour: v.colour ?? '', priceOverride: koboToNairaInput(v.priceOverrideKobo), stock: String(v.stockQuantity), active: v.active })), []);
   const [newImages, setNewImages] = useState<{ key: string; uri: string; name: string; type: string }[]>([]);
@@ -49,6 +61,7 @@ export default function ProductEditor() {
     retailPriceKobo: nairaInputToKobo(f.retail) ?? -1,
     wholesalePriceKobo: f.wholesale ? nairaInputToKobo(f.wholesale) : null,
     wholesaleMinQuantity: f.wholesaleMin ? Number(f.wholesaleMin) : null,
+    ...(finance ? { costPriceKobo: f.cost ? nairaInputToKobo(f.cost) : null } : {}),
     minOrderQuantity: Number(f.minOrder) || 1,
     unit: f.unit,
     ...(isNew ? { stockQuantity: Number(f.stock) || 0 } : {}),
@@ -158,6 +171,15 @@ export default function ProductEditor() {
         <TextField containerClassName="mr-2 flex-1" label="Wholesale price (₦)" keyboardType="numeric" value={f.wholesale} onChangeText={(t) => setF((x) => ({ ...x, wholesale: t }))} error={errors.wholesalePriceKobo} />
         <TextField containerClassName="flex-1" label={`From (${UNIT_LABELS[f.unit].plural})`} keyboardType="decimal-pad" value={f.wholesaleMin} onChangeText={(t) => setF((x) => ({ ...x, wholesaleMin: t }))} error={errors.wholesaleMinQuantity} />
       </View>
+      {finance ? (
+        <TextField
+          label={`What one ${UNIT_LABELS[f.unit].singular} costs you (₦)`}
+          keyboardType="numeric"
+          value={f.cost}
+          onChangeText={(t) => setF((x) => ({ ...x, cost: t }))}
+          hint={profitHint(f.retail, f.cost, UNIT_LABELS[f.unit].singular)}
+        />
+      ) : null}
       <TextField label="Minimum order quantity" keyboardType="decimal-pad" value={f.minOrder} onChangeText={(t) => setF((x) => ({ ...x, minOrder: t }))} />
 
       <SectionHeader title="Stock" />

@@ -101,17 +101,16 @@ chatsRouter.post('/:id/images', uploadLimiter, imageUpload.single('image'), asyn
   ok(res, await postMessage(access, a.userId, { type: 'image', clientMessageId, text, imageUrl: 'private', imageKey: key }), 201);
 });
 
-/** Streams a private chat image to an authorised participant (or redirects to a short-lived signed URL). */
+/**
+ * Streams a private chat image to an authorised participant. It is never a redirect to a signed storage
+ * URL: phones re-send the login header on redirects, and S3/R2 reject a request carrying two kinds of
+ * authorisation (HTTP 400), which left chat photos blank.
+ */
 chatsRouter.get('/:id/messages/:messageId/image', async (req, res) => {
   const a = requireAuth(req);
   const access = await requireConversationAccess(a, paramId(req.params.id));
   const m = await Message.findOne({ _id: paramId(req.params.messageId), conversationId: access.conversation._id, type: 'image', hiddenAt: null }).lean();
   if (!m?.imageKey) throw notFound('Image');
-  const signed = await storage().signedUrl(m.imageKey, 300);
-  if (signed) {
-    res.redirect(302, signed);
-    return;
-  }
   const buf = await storage().get(m.imageKey);
   res.setHeader('content-type', 'image/webp');
   res.setHeader('cache-control', 'private, max-age=300');

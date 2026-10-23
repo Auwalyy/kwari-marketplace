@@ -67,6 +67,8 @@ const productSchema = new Schema(
     retailPriceKobo: { type: Number, required: true, min: 0 },
     wholesalePriceKobo: { type: Number, default: null },
     wholesaleMinQuantity: { type: Number, default: null },
+    /** Average cost of one unit to the shop. Never shown to customers. */
+    costPriceKobo: { type: Number, default: null, min: 0 },
     minOrderQuantity: { type: Number, default: 1 },
     unit: { type: String, enum: MEASUREMENT_UNITS, required: true },
     /** For products with variants this is the sum of variant stock. */

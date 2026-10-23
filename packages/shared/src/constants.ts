@@ -44,6 +44,8 @@ export const SHOP_PERMISSIONS = [
   'chats.manage',
   'quotations.manage',
   'reports.view',
+  'sales.record',
+  'finance.view',
 ] as const;
 export type ShopPermission = (typeof SHOP_PERMISSIONS)[number];
 
@@ -54,6 +56,8 @@ export const SHOP_PERMISSION_LABELS: Record<ShopPermission, string> = {
   'chats.manage': 'Answer customer chats',
   'quotations.manage': 'Manage quotations',
   'reports.view': 'View basic sales reports',
+  'sales.record': 'Record in-shop sales and debt payments',
+  'finance.view': 'See money: profit, expenses and debts',
 };
 
 export const INVITATION_STATUSES = ['active', 'revoked', 'expired', 'exhausted'] as const;
@@ -95,7 +99,59 @@ export const INVENTORY_MOVEMENT_REASONS = [
   'order_reserved',
   'order_released',
   'damaged',
+  'sale_in_shop',
+  'sale_voided',
 ] as const;
+
+/* Shop books: sales made in the shop (not through the app) and expenses ------------------------- */
+
+/** How a customer paid in the shop. A sale paid in part is "on credit" for the rest. */
+export const SALE_PAYMENT_METHODS = ['cash', 'transfer', 'pos'] as const;
+export type SalePaymentMethod = (typeof SALE_PAYMENT_METHODS)[number];
+export const SALE_PAYMENT_METHOD_LABELS: Record<SalePaymentMethod, string> = {
+  cash: 'Cash',
+  transfer: 'Bank transfer',
+  pos: 'POS / card',
+};
+
+export const EXPENSE_CATEGORIES = [
+  'stock_purchase',
+  'rent',
+  'market_levy',
+  'staff',
+  'transport',
+  'utilities',
+  'phone_data',
+  'packaging',
+  'repairs',
+  'other',
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  stock_purchase: 'Buying stock',
+  rent: 'Shop rent',
+  market_levy: 'Market levy & dues',
+  staff: 'Staff pay',
+  transport: 'Transport & loading',
+  utilities: 'Electricity & generator',
+  phone_data: 'Phone & data',
+  packaging: 'Bags & packaging',
+  repairs: 'Repairs',
+  other: 'Other',
+};
+
+export const BOOKS_PERIODS = ['today', 'yesterday', 'week', 'month', 'last_month', '30d', '90d', 'year'] as const;
+export type BooksPeriod = (typeof BOOKS_PERIODS)[number];
+export const BOOKS_PERIOD_LABELS: Record<BooksPeriod, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  week: 'This week',
+  month: 'This month',
+  last_month: 'Last month',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  year: 'This year',
+};
 
 export const FULFILMENT_METHODS = ['pickup', 'delivery'] as const;
 export type FulfilmentMethod = (typeof FULFILMENT_METHODS)[number];

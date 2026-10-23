@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { Avatar, Badge, Button, ListItem, useConfirm } from '@/components/ui';
 import { useAuth } from '@/store/auth';
+import { useSelectedShop } from '@/store/shop';
 import { unregisterPush } from '@/lib/push';
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export default function Account() {
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
   const confirm = useConfirm();
+  const selectShop = useSelectedShop((s) => s.select);
 
   if (!user) {
     return (
@@ -81,7 +83,16 @@ export default function Account() {
 
       <Group title="Selling">
         {user.shops.map((s) => (
-          <ListItem key={s.shopId} icon={Store} title={s.shopName} subtitle={`${s.role === 'owner' ? 'Owner' : 'Worker'} · ${s.shopStatus === 'active' ? 'Active' : s.shopStatus.replace('_', ' ')}`} onPress={() => router.push(s.shopStatus === 'pending_membership' || s.shopStatus === 'rejected' ? `/seller/${s.shopId}/membership` : `/seller/${s.shopId}`)} />
+          <ListItem
+            key={s.shopId}
+            icon={Store}
+            title={s.shopName}
+            subtitle={`${s.role === 'owner' ? 'Owner' : 'Staff'} · ${s.shopStatus === 'active' ? 'Open in My shop' : s.shopStatus.replace('_', ' ')}`}
+            onPress={() => {
+              selectShop(s.shopId);
+              router.push('/(tabs)/shop');
+            }}
+          />
         ))}
         <ListItem icon={Plus} title="Register a physical shop" subtitle="Requires an invitation code from your house head" onPress={() => router.push('/seller/register')} />
         <ListItem icon={UserPlus} title="Join a shop as a worker" subtitle="Enter the code from the shop owner" onPress={() => router.push('/seller/join')} />

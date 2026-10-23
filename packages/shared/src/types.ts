@@ -1,4 +1,7 @@
 import type {
+  BooksPeriod,
+  ExpenseCategory,
+  SalePaymentMethod,
   DeliveryStatus,
   FulfilmentMethod,
   HouseMembershipStatus,
@@ -329,6 +332,8 @@ export interface ProductSummaryDto {
 }
 
 export interface ProductDto extends ProductSummaryDto {
+  /** Shop staff with finance access only; never sent to customers. */
+  costPriceKobo?: number | null;
   description?: string;
   categoryId: string;
   subcategory?: string;
@@ -581,6 +586,113 @@ export interface ReviewDto {
   response?: { text: string; at: string } | null;
   status: string;
   createdAt: string;
+}
+
+/* Shop books ----------------------------------------------------------------------------------- */
+
+export interface ShopSaleItemDto {
+  productId: string | null;
+  variantId: string | null;
+  name: string;
+  unit: MeasurementUnit;
+  quantity: number;
+  unitPriceKobo: number;
+  lineTotalKobo: number;
+  /** Only for staff with finance access. */
+  unitCostKobo?: number | null;
+  thumbnailUrl?: string | null;
+}
+
+export interface ShopSaleDto {
+  id: string;
+  number: string;
+  soldAt: string;
+  customerName?: string;
+  customerPhone?: string;
+  items: ShopSaleItemDto[];
+  subtotalKobo: number;
+  discountKobo: number;
+  totalKobo: number;
+  amountPaidKobo: number;
+  /** What the customer still owes. */
+  balanceKobo: number;
+  payments: { amountKobo: number; method: SalePaymentMethod; at: string; note?: string }[];
+  status: 'completed' | 'voided';
+  voidReason?: string;
+  note?: string;
+  recordedBy: { id: string; fullName: string };
+  createdAt: string;
+}
+
+export interface ShopExpenseDto {
+  id: string;
+  category: ExpenseCategory;
+  amountKobo: number;
+  method: SalePaymentMethod;
+  spentAt: string;
+  note?: string;
+  status: 'active' | 'voided';
+  recordedBy: { id: string; fullName: string };
+}
+
+/** Advice the app shows the shop. Built from the shop's own sales, stock and books. */
+export interface ShopInsightDto {
+  id: string;
+  kind: 'reorder' | 'sold_out' | 'slow_moving' | 'below_cost' | 'missing_cost' | 'debts' | 'trend' | 'best_seller' | 'orders' | 'enquiries';
+  severity: 'urgent' | 'warning' | 'info' | 'good';
+  title: string;
+  message: string;
+  productId?: string;
+  /** Where the app goes when it is tapped. */
+  action?: 'orders' | 'enquiries' | 'inventory' | 'products' | 'sales_owing' | 'product' | 'books';
+}
+
+export interface StockForecastDto {
+  productId: string;
+  name: string;
+  unit: MeasurementUnit;
+  thumbnailUrl: string | null;
+  stockQuantity: number;
+  stockStatus: StockStatus;
+  /** Units sold over the last 30 days (app orders + in-shop sales). */
+  soldLast30: number;
+  dailyRate: number;
+  /** null when nothing has sold recently. */
+  daysLeft: number | null;
+  /** Quantity to buy so stock lasts about a month at the current rate. */
+  suggestedReorder: number;
+  /** Only for staff with finance access. */
+  costPriceKobo?: number | null;
+  retailPriceKobo: number;
+}
+
+export interface ShopDashboardDto {
+  today: { salesKobo: number; salesCount: number; collectedKobo: number; appOrdersKobo: number; inShopKobo: number; profitKobo: number | null };
+  pendingOrders: number;
+  unreadEnquiries: number;
+  pendingQuotations: number;
+  /** Total customers owe. Only with finance access. */
+  owedKobo: number | null;
+  lowStockCount: number;
+  outOfStockCount: number;
+  insights: ShopInsightDto[];
+}
+
+export interface BooksSummaryDto {
+  period: { key: BooksPeriod; label: string; from: string; to: string };
+  revenue: { totalKobo: number; appKobo: number; inShopKobo: number; appCount: number; inShopCount: number; changePct: number | null };
+  collected: { totalKobo: number; byMethod: { method: SalePaymentMethod | 'online'; kobo: number }[] };
+  owed: { totalKobo: number; customers: number; overdueKobo: number };
+  costOfGoodsKobo: number;
+  /** Share of sold value whose cost price is known (0–1). Below 1 the profit is an estimate. */
+  costCoverage: number;
+  expenses: { totalKobo: number; operatingKobo: number; stockPurchasesKobo: number; byCategory: { category: ExpenseCategory; kobo: number }[] };
+  grossProfitKobo: number;
+  netProfitKobo: number;
+  trend: { date: string; appKobo: number; inShopKobo: number; expensesKobo: number }[];
+  topProducts: { productId: string | null; name: string; unit: MeasurementUnit; quantity: number; revenueKobo: number; profitKobo: number | null }[];
+  stock: { retailValueKobo: number; costValueKobo: number; productsMissingCost: number };
+  insights: ShopInsightDto[];
 }
 
 /* Analytics ------------------------------------------------------------------------------------ */

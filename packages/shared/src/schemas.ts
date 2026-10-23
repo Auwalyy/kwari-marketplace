@@ -9,6 +9,9 @@ import {
   REPORT_TARGETS,
   SHOP_PERMISSIONS,
   VERIFICATION_TYPES,
+  SALE_PAYMENT_METHODS,
+  EXPENSE_CATEGORIES,
+  BOOKS_PERIODS,
   PROMOTION_TYPES,
   NOTIFICATION_PREFERENCE_GROUPS,
 } from './constants';
@@ -290,6 +293,8 @@ const productBase = z.object({
   retailPriceKobo: priceKobo,
   wholesalePriceKobo: priceKobo.optional().nullable(),
   wholesaleMinQuantity: quantity.optional().nullable(),
+  /** What one unit cost the shop. Private to the owner and staff with finance access. */
+  costPriceKobo: priceKobo.optional().nullable(),
   minOrderQuantity: quantity.min(0.01).default(1),
   unit: z.enum(MEASUREMENT_UNITS),
   stockQuantity: quantity.default(0),
@@ -327,6 +332,81 @@ export const inventoryAdjustSchema = z.object({
   delta: z.number().min(-10_000_000).max(10_000_000).multipleOf(0.01).refine((v) => v !== 0, 'Change cannot be zero'),
   reason: z.enum(['restock', 'adjustment', 'damaged']),
   note: optionalText(300),
+  /** Restock only: what each unit cost. Updates the product's average cost price. */
+  unitCostKobo: priceKobo.optional(),
+  /** Restock only: also record the purchase in the shop's expenses as "Buying stock". */
+  recordExpense: z.boolean().default(false),
+});
+
+/* Shop books ----------------------------------------------------------------------------------- */
+
+export const saleItemInputSchema = z
+  .object({
+    /** A product from the shop's catalogue; stock is taken from it. Leave out for items not listed. */
+    productId: objectId.optional(),
+    variantId: objectId.optional(),
+    /** Required for items that are not in the catalogue. */
+    name: optionalText(140),
+    unit: z.enum(MEASUREMENT_UNITS).optional(),
+    quantity: quantity.min(0.01),
+    /** Defaults to the product's retail or wholesale price for the quantity. */
+    unitPriceKobo: priceKobo.optional(),
+    /** Items not in the catalogue: what one unit cost, for profit. */
+    unitCostKobo: priceKobo.optional(),
+  })
+  .refine((v) => !!v.productId || (!!v.name && v.unitPriceKobo != null), { message: 'Choose a product, or enter a name and price', path: ['name'] });
+
+export const saleCreateSchema = z.object({
+  items: z.array(saleItemInputSchema).min(1, 'Add at least one item').max(50),
+  discountKobo: priceKobo.default(0),
+  /** Defaults to the full total. Less than the total records the rest as owed by the customer. */
+  amountPaidKobo: priceKobo.optional(),
+  paymentMethod: z.enum(SALE_PAYMENT_METHODS).default('cash'),
+  customerName: optionalText(80),
+  customerPhone: optionalText(20),
+  /** When the sale happened; defaults to now. Can be back-dated up to 60 days. */
+  soldAt: z.coerce.date().optional(),
+  note: optionalText(300),
+  /** Set by the app so a retried request can't record the same sale twice. */
+  clientRef: z.string().trim().max(64).optional(),
+});
+export type SaleCreateInput = z.infer<typeof saleCreateSchema>;
+
+export const salePaymentSchema = z.object({
+  amountKobo: priceKobo.min(1, 'Enter an amount'),
+  method: z.enum(SALE_PAYMENT_METHODS).default('cash'),
+  note: optionalText(200),
+});
+
+export const voidSchema = z.object({ reason: z.string().trim().min(3, 'Say why').max(200) });
+
+export const expenseCreateSchema = z.object({
+  category: z.enum(EXPENSE_CATEGORIES),
+  amountKobo: priceKobo.min(1, 'Enter an amount'),
+  method: z.enum(SALE_PAYMENT_METHODS).default('cash'),
+  spentAt: z.coerce.date().optional(),
+  note: optionalText(200),
+});
+export type ExpenseCreateInput = z.infer<typeof expenseCreateSchema>;
+
+export const booksPeriodSchema = z.object({ period: z.enum(BOOKS_PERIODS).default('month') });
+
+export const salesListSchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  period: z.enum(BOOKS_PERIODS).optional(),
+  /** Only sales the customer still owes money on. */
+  owing: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
+  q: z.string().trim().max(80).optional(),
+});
+
+export const expensesListSchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  period: z.enum(BOOKS_PERIODS).optional(),
 });
 
 export const bulkProductActionSchema = z.object({

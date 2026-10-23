@@ -18,6 +18,7 @@ import { houseInvitationsRouter, invitationsRouter, workerInvitationsRouter } fr
 import { shopsRouter } from './modules/shops/shops.routes';
 import { categoriesRouter } from './modules/categories/categories.routes';
 import { productsRouter, shopProductsRouter } from './modules/products/products.routes';
+import { booksRouter } from './modules/books/books.routes';
 import { searchRouter } from './modules/search/search.routes';
 import { visualSearchRouter } from './modules/visual-search/visual-search.routes';
 import { favoritesRouter } from './modules/favorites/favorites.routes';
@@ -122,6 +123,7 @@ export function createApp() {
   v1.use('/invitations', invitationsRouter);
   v1.use('/shops/:shopId/worker-invitations', workerInvitationsRouter);
   v1.use('/shops/:shopId/products', shopProductsRouter);
+  v1.use('/shops/:shopId/books', booksRouter);
   v1.use('/shops/:shopId/orders', shopOrdersRouter);
   v1.use('/shops', shopsRouter);
   v1.use('/categories', categoriesRouter);

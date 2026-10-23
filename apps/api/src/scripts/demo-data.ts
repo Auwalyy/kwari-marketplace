@@ -16,6 +16,7 @@ import { Block, Report, VerificationRequest } from '../modules/reports/trust.mod
 import { Review } from '../modules/reviews/review.model';
 import { Shop, ShopMembership } from '../modules/shops/shop.models';
 import { Address, User } from '../modules/users/user.model';
+import { ShopExpense, ShopSale } from '../modules/books/books.models';
 import { ProductEmbedding, VisualSearchCache } from '../modules/visual-search/embedding.model';
 import { storage } from '../services/storage';
 
@@ -101,6 +102,8 @@ export async function removeDemoData({ dryRun = false } = {}): Promise<DemoRemov
     ['promotions', Promotion, { $or: [{ shopId: { $in: shops } }, { productId: { $in: products } }] }],
     ['subscriptions', SubscriptionEntitlement, { shopId: { $in: shops } }],
     ['image search data', ProductEmbedding, { $or: [{ shopId: { $in: shops } }, { productId: { $in: products } }] }],
+    ['in-shop sales', ShopSale, { $or: [{ shopId: { $in: shops } }, { recordedBy: { $in: users } }] }],
+    ['expenses', ShopExpense, { shopId: { $in: shops } }],
     ['inventory movements', InventoryMovement, { $or: [{ shopId: { $in: shops } }, { productId: { $in: products } }] }],
     ['shop invitations', ShopInvitation, { shopId: { $in: shops } }],
     ['shop memberships', ShopMembership, { $or: [{ shopId: { $in: shops } }, { userId: { $in: users } }] }],

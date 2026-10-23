@@ -16,7 +16,9 @@ export default function Inbox() {
   const user = useAuth((s) => s.user);
   const unread = useUnreadCounts();
   const shopInboxes = (user?.shops ?? []).filter((s) => s.role === 'owner' || s.permissions.includes('chats.manage'));
-  const [inbox, setInbox] = useState<string>('customer');
+  const [chosen, setInbox] = useState<string | null>(null);
+  // Until the person picks, open the first shop inbox with unread customer messages (else their own chats).
+  const inbox = chosen ?? shopInboxes.find((s) => (unread.shopChats[s.shopId] ?? 0) > 0)?.shopId ?? 'customer';
 
   if (!user) {
     return (
