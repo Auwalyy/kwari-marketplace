@@ -21,6 +21,7 @@ import { imageUpload } from '../../middleware/upload';
 import { uploadLimiter, writeLimiter } from '../../middleware/rateLimit';
 import { canSeeFinance, getShopAccess, isAdmin, requireShopAccess, type ShopAccess } from '../../services/access';
 import { ShopExpense } from '../books/books.models';
+import { approvedReseller } from '../resellers/reseller.access';
 import { audit } from '../../services/audit';
 import { notifyShopStaff } from '../notifications/notify';
 import { processUploadedImage } from '../../services/images';
@@ -79,6 +80,7 @@ async function staffProductDto(p: ProductDoc, access: Pick<ShopAccess, 'isOwner'
     ...(await toProductDto(p.toObject() as any)),
     moderationStatus: p.moderationStatus,
     moderationReason: p.moderationReason,
+    resellerPriceKobo: p.resellerPriceKobo ?? null,
     ...(canSeeFinance(access) ? { costPriceKobo: p.costPriceKobo ?? null } : {}),
   };
 }
@@ -138,6 +140,11 @@ shopProductsRouter.patch('/:productId', writeLimiter, async (req, res) => {
   if (input.unit && !access.shop.enabledUnits.includes(input.unit)) throw badRequest(`Your shop has not enabled the unit "${input.unit}"`, 'UNIT_NOT_ENABLED');
   const merged = { retail: input.retailPriceKobo ?? p.retailPriceKobo, wholesale: input.wholesalePriceKobo !== undefined ? input.wholesalePriceKobo : p.wholesalePriceKobo };
   if (merged.wholesale != null && merged.wholesale > merged.retail) throw badRequest('Wholesale price should not exceed the retail price', 'INVALID_WHOLESALE');
+  // Checked against the stored retail price too, since either price can be changed on its own.
+  const resellerPrice = input.resellerPriceKobo !== undefined ? input.resellerPriceKobo : p.resellerPriceKobo;
+  if (resellerPrice != null && resellerPrice > merged.retail) {
+    throw badRequest('The reseller price should be below your retail price, so resellers can add their profit', 'INVALID_RESELLER_PRICE');
+  }
 
   if (input.variants) {
     // Variant stock is preserved for existing variants; new variants start from the supplied value.
@@ -427,5 +434,7 @@ productsRouter.get('/:id', optionalAuth, async (req, res) => {
   if (req.auth && isPubliclyVisible(p)) {
     await RecentlyViewed.updateOne({ userId: req.auth.userId, productId: p._id }, { $set: { viewedAt: new Date() } }, { upsert: true });
   }
-  ok(res, await toProductDto(p as any));
+  // Approved resellers (and only they) see the reseller price, so they can re-list it at their own price.
+  const reseller = req.auth && p.resellerPriceKobo != null ? await approvedReseller(req.auth.userId) : null;
+  ok(res, { ...(await toProductDto(p as any)), ...(reseller ? { resellerPriceKobo: p.resellerPriceKobo } : {}) });
 });

@@ -1,4 +1,5 @@
 import type { MeDto, PlatformRole, ShopPermission, UserDto } from '@kkdm/shared';
+import { Reseller } from '../resellers/reseller.models';
 import { User } from './user.model';
 import { Shop, ShopMembership } from '../shops/shop.models';
 import { House, HouseStaff, Market } from '../markets/market.models';
@@ -57,6 +58,7 @@ export async function buildMe(userId: string): Promise<MeDto> {
     .select('houseNumber name marketId headVerificationStatus')
     .lean();
   const markets = await Market.find({ _id: { $in: houses.map((h) => h.marketId) } }).select('name').lean();
+  const reseller = await Reseller.findOne({ userId }).select('status businessName slug').lean();
   const marketNames = new Map(markets.map((m) => [String(m._id), m.name]));
 
   return {
@@ -81,5 +83,6 @@ export async function buildMe(userId: string): Promise<MeDto> {
       marketName: marketNames.get(String(h.marketId)) ?? '',
       verificationStatus: h.headVerificationStatus,
     })),
+    reseller: reseller ? { id: String(reseller._id), status: reseller.status, businessName: reseller.businessName, slug: reseller.slug } : null,
   };
 }

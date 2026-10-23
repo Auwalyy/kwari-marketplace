@@ -15,6 +15,7 @@ import { InventoryMovement, Product } from '../products/product.models';
 import { applyStockDerivations } from '../products/product.service';
 import { syncProductEmbeddingFilters } from '../visual-search/embedding.service';
 import { Shop } from '../shops/shop.models';
+import { Reseller } from '../resellers/reseller.models';
 import { toShopSummaries } from '../shops/shop.service';
 import { User } from '../users/user.model';
 import { Review } from '../reviews/review.model';
@@ -117,6 +118,7 @@ export async function toOrderDtos(orders: any[], viewer: OrderActor): Promise<Or
   const summaries = await toShopSummaries(shops as any);
   const customers = await User.find({ _id: { $in: orders.map((o) => o.customerId) } }).select('fullName phone').lean();
   const deliveries = await Delivery.find({ orderId: { $in: orders.map((o) => o._id) } }).lean();
+  const resellers = await Reseller.find({ _id: { $in: orders.map((o) => o.resellerId).filter(Boolean) } }).select('businessName slug').lean();
   const reviewed = viewer === 'customer' ? await Review.find({ orderId: { $in: orders.map((o) => o._id) }, scope: 'shop' }).select('orderId').lean() : [];
 
   return orders.map((o) => {
@@ -133,6 +135,10 @@ export async function toOrderDtos(orders: any[], viewer: OrderActor): Promise<Or
         // The customer's phone is shared with the seller only for fulfilment of an active order.
         phone: viewer === 'seller' && !['completed', 'cancelled', 'rejected', 'refunded'].includes(o.status) ? (c?.phone ?? null) : undefined,
       },
+      reseller: (() => {
+        const r = o.resellerId ? resellers.find((x) => String(x._id) === String(o.resellerId)) : null;
+        return r ? { businessName: r.businessName, slug: r.slug } : null;
+      })(),
       shop,
       items: o.items.map((i: any) => ({
         id: String(i._id),

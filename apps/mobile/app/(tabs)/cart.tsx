@@ -66,6 +66,7 @@ export default function CartTab() {
                     <Text className="mt-0.5 text-xs text-ink-600">
                       {formatNaira(l.unitPriceKobo)} / {unitLabel(l.unit)}
                       {l.wholesaleApplied ? ' · wholesale price' : ''}
+                      {l.resellerApplied ? ' · your reseller price' : ''}
                       {l.quotationId ? ' · agreed quotation price' : ''}
                     </Text>
                     {l.issue ? <Badge label={l.issue} tone="danger" className="mt-1" /> : null}

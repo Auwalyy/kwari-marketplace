@@ -19,6 +19,8 @@ import { shopsRouter } from './modules/shops/shops.routes';
 import { categoriesRouter } from './modules/categories/categories.routes';
 import { productsRouter, shopProductsRouter } from './modules/products/products.routes';
 import { booksRouter } from './modules/books/books.routes';
+import { resellerAdminRouter, resellerListingsRouter, resellersRouter } from './modules/resellers/reseller.routes';
+import { resellerPagesRouter } from './modules/resellers/reseller.pages';
 import { searchRouter } from './modules/search/search.routes';
 import { visualSearchRouter } from './modules/visual-search/visual-search.routes';
 import { favoritesRouter } from './modules/favorites/favorites.routes';
@@ -124,6 +126,9 @@ export function createApp() {
   v1.use('/shops/:shopId/worker-invitations', workerInvitationsRouter);
   v1.use('/shops/:shopId/products', shopProductsRouter);
   v1.use('/shops/:shopId/books', booksRouter);
+  v1.use('/resellers', resellersRouter);
+  v1.use('/reseller-listings', resellerListingsRouter);
+  v1.use('/admin/resellers', resellerAdminRouter);
   v1.use('/shops/:shopId/orders', shopOrdersRouter);
   v1.use('/shops', shopsRouter);
   v1.use('/categories', categoriesRouter);
@@ -146,6 +151,8 @@ export function createApp() {
   v1.use('/promotions', promotionsRouter);
   v1.use('/admin', adminRouter);
   app.use('/api/v1', v1);
+  // Shareable reseller pages for customers without the app (outside the versioned API).
+  app.use(resellerPagesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

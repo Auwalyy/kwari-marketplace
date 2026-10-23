@@ -7,6 +7,7 @@ import { ChevronLeft, Clock, SlidersHorizontal, X } from 'lucide-react-native';
 import type { CategoryDto, ProductSummaryDto } from '@kkdm/shared';
 import { Button, Chip, ChoiceChips, IconButton, PaginatedList, ProductGridSkeleton, Sheet, SwitchRow, TextField, type SheetHandle } from '@/components/ui';
 import { ProductCard, SearchBar } from '@/components/cards';
+import { ResellerStrip } from '@/components/reseller';
 import { colors } from '@/constants/theme';
 import { useFavourites } from '@/hooks';
 import { api } from '@/lib/api';
@@ -156,6 +157,7 @@ export default function Search() {
             numColumns={2}
             skeleton={<View className="px-4"><ProductGridSkeleton count={6} /></View>}
             contentPadding={12}
+            header={params.shopId || params.houseId ? undefined : <ResellerStrip q={query || undefined} />}
             renderItem={(p) => (
               <View className="flex-1 px-1">
                 <ProductCard product={p} favourite={fav.products.has(p.id)} onToggleFavourite={() => fav.toggle('product', p.id)} />

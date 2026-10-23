@@ -10,6 +10,7 @@ import { Shop } from '../shops/shop.models';
 import { Address } from '../users/user.model';
 import { Delivery } from '../deliveries/delivery.model';
 import { paymentProvider } from '../payments/providers';
+import { approvedReseller } from '../resellers/reseller.access';
 import { notifyShopStaff } from '../notifications/notify';
 import { authenticate, requireAuth } from '../../middleware/auth';
 import { writeLimiter } from '../../middleware/rateLimit';
@@ -141,13 +142,14 @@ async function performCheckout(userId: string, input: ReturnType<typeof checkout
   if (needsAddress && !address) throw badRequest('Choose a delivery address', 'ADDRESS_REQUIRED');
 
   const shops = await Shop.find({ _id: { $in: shopIds } }).lean();
+  const reseller = await approvedReseller(userId);
   const plans: { shop: (typeof shops)[number]; sel: (typeof input.shops)[number]; items: (typeof cart.items)[number][]; lines: PricedLine[]; subtotal: number; fee: number | null; option: any }[] = [];
   for (const sel of input.shops) {
     const shop = shops.find((s) => String(s._id) === sel.shopId);
     if (!shop || shop.status !== 'active') throw badRequest('One of the shops is not accepting orders', 'SHOP_NOT_ACTIVE');
     const items = cart.items.filter((i) => String(i.shopId) === sel.shopId);
     if (!items.length) throw badRequest(`Your cart has no items from ${shop.name}`, 'NO_ITEMS_FOR_SHOP');
-    const lines = await priceCartItems(items as any);
+    const lines = await priceCartItems(items as any, { reseller: !!reseller });
     const bad = lines.find((l) => !l.available);
     if (bad) throw conflict(`${bad.productName}: ${bad.issue}`, 'CART_ITEM_UNAVAILABLE');
 
@@ -196,6 +198,7 @@ async function performCheckout(userId: string, input: ReturnType<typeof checkout
                 quantity: l.quantity,
                 unitPriceKobo: l.unitPriceKobo,
                 wholesaleApplied: l.wholesaleApplied,
+                resellerPriceApplied: l.resellerApplied,
                 lineTotalKobo: l.lineTotalKobo,
                 stockTracked: l.trackInventory,
               })),
@@ -207,6 +210,7 @@ async function performCheckout(userId: string, input: ReturnType<typeof checkout
               totalKobo: plan.subtotal + (plan.fee ?? 0),
               note: plan.sel.note,
               quotationId,
+              resellerId: reseller && plan.lines.some((l) => l.resellerApplied) ? reseller._id : null,
               events: [{ status: 'pending_acceptance', actorId: userId, actorRole: 'customer', at: new Date() }],
             },
           ],

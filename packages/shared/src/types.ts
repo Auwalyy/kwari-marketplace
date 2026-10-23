@@ -1,4 +1,6 @@
 import type {
+  ResellerRequestStatus,
+  ResellerStatus,
   BooksPeriod,
   ExpenseCategory,
   SalePaymentMethod,
@@ -90,6 +92,8 @@ export interface UserDto {
 export interface MeDto extends UserDto {
   shops: ShopMembershipSummary[];
   houses: HouseHeadSummary[];
+  /** Present once the person has applied to resell. */
+  reseller?: { id: string; status: ResellerStatus; businessName: string; slug: string } | null;
 }
 
 export interface AuthTokens {
@@ -334,6 +338,8 @@ export interface ProductSummaryDto {
 export interface ProductDto extends ProductSummaryDto {
   /** Shop staff with finance access only; never sent to customers. */
   costPriceKobo?: number | null;
+  /** Only sent to the shop's staff and to approved resellers. */
+  resellerPriceKobo?: number | null;
   description?: string;
   categoryId: string;
   subcategory?: string;
@@ -410,6 +416,8 @@ export interface CartLineDto {
   available: boolean;
   issue?: string | null;
   quotationId?: string | null;
+  /** The buyer is an approved reseller and got the shop's reseller price. */
+  resellerApplied?: boolean;
 }
 
 export interface CartShopGroupDto {
@@ -468,6 +476,8 @@ export interface OrderDto {
   reference: string;
   checkoutId: string;
   customer: { id: string; fullName: string; phone?: string | null };
+  /** Set when the buyer is an approved reseller who got the reseller price. */
+  reseller?: { businessName: string; slug: string } | null;
   shop: ShopSummaryDto;
   items: OrderItemDto[];
   status: OrderStatus;
@@ -586,6 +596,101 @@ export interface ReviewDto {
   response?: { text: string; at: string } | null;
   status: string;
   createdAt: string;
+}
+
+/* Resellers ------------------------------------------------------------------------------------ */
+
+/** What customers see about a reseller. */
+export interface ResellerPublicDto {
+  id: string;
+  businessName: string;
+  slug: string;
+  area?: string;
+  about?: string;
+  phone?: string;
+  whatsapp?: string;
+  listingCount: number;
+}
+
+export interface ResellerMeDto extends ResellerPublicDto {
+  status: ResellerStatus;
+  decisionReason?: string;
+  appliedAt: string;
+}
+
+/**
+ * A product a reseller re-listed at their own price. Customers see the reseller, never the shop.
+ * `source` (the shop, its reseller price) is only included for the reseller who owns the listing.
+ */
+export interface ResellerListingDto {
+  id: string;
+  priceKobo: number;
+  note?: string;
+  status: 'active' | 'paused';
+  /** False when the shop stopped reselling it, unpublished it, or raised the reseller price above this price. */
+  available: boolean;
+  unavailableReason?: string;
+  product: {
+    name: string;
+    description?: string;
+    unit: MeasurementUnit;
+    images: { url: string; thumbnailUrl: string }[];
+    thumbnailUrl: string | null;
+    stockStatus: StockStatus;
+    minOrderQuantity: number;
+    colours: string[];
+    material?: string;
+    categoryName?: string;
+  };
+  reseller: ResellerPublicDto;
+  source?: { productId: string; shopName: string; shopSlug: string; resellerPriceKobo: number | null; retailPriceKobo: number; profitPerUnitKobo: number | null };
+  createdAt: string;
+}
+
+export interface ResellerRequestDto {
+  id: string;
+  listing: { id: string; name: string; thumbnailUrl: string | null; priceKobo: number; unit: MeasurementUnit };
+  customer: { id: string; fullName: string; phone?: string };
+  quantity: number;
+  note?: string;
+  status: ResellerRequestStatus;
+  createdAt: string;
+}
+
+export interface ResellerSaleDto {
+  id: string;
+  number: string;
+  soldAt: string;
+  listingId: string | null;
+  name: string;
+  unit: MeasurementUnit;
+  quantity: number;
+  unitPriceKobo: number;
+  unitCostKobo: number | null;
+  totalKobo: number;
+  profitKobo: number | null;
+  amountPaidKobo: number;
+  balanceKobo: number;
+  payments: { amountKobo: number; method: SalePaymentMethod; at: string }[];
+  customerName?: string;
+  customerPhone?: string;
+  status: 'completed' | 'voided';
+  note?: string;
+}
+
+export interface ResellerSummaryDto {
+  period: { key: BooksPeriod; label: string };
+  salesKobo: number;
+  salesCount: number;
+  costKobo: number;
+  profitKobo: number;
+  collectedKobo: number;
+  /** All time: what the reseller's customers still owe. */
+  owedKobo: number;
+  newRequests: number;
+  activeListings: number;
+  /** Listings that customers can't see right now (shop changed price or stopped reselling). */
+  listingsNeedingAttention: number;
 }
 
 /* Shop books ----------------------------------------------------------------------------------- */

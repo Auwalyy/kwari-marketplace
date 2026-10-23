@@ -318,6 +318,8 @@ export const NOTIFICATION_TYPES = [
   'report.updated',
   'verification.updated',
   'announcement',
+  'reseller.updated',
+  'reseller.request',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -341,7 +343,17 @@ export const NOTIFICATION_GROUP_OF: Record<NotificationType, NotificationPrefere
   'report.updated': 'trust',
   'verification.updated': 'trust',
   announcement: 'announcements',
+  'reseller.updated': 'shop',
+  'reseller.request': 'orders',
 };
+
+/* Resellers: approved agents who resell other shops' products at their own price -------------- */
+
+export const RESELLER_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
+export type ResellerStatus = (typeof RESELLER_STATUSES)[number];
+
+export const RESELLER_REQUEST_STATUSES = ['new', 'accepted', 'declined', 'completed'] as const;
+export type ResellerRequestStatus = (typeof RESELLER_REQUEST_STATUSES)[number];
 
 export const PROMOTION_TYPES = ['featured_shop', 'featured_product', 'sponsored_search'] as const;
 export type PromotionType = (typeof PROMOTION_TYPES)[number];

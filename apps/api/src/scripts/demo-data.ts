@@ -17,6 +17,7 @@ import { Review } from '../modules/reviews/review.model';
 import { Shop, ShopMembership } from '../modules/shops/shop.models';
 import { Address, User } from '../modules/users/user.model';
 import { ShopExpense, ShopSale } from '../modules/books/books.models';
+import { Reseller, ResellerListing, ResellerRequest, ResellerSale } from '../modules/resellers/reseller.models';
 import { ProductEmbedding, VisualSearchCache } from '../modules/visual-search/embedding.model';
 import { storage } from '../services/storage';
 
@@ -65,6 +66,8 @@ export async function removeDemoData({ dryRun = false } = {}): Promise<DemoRemov
   const conversations = await ids(Conversation, { $or: [{ shopId: { $in: shops } }, { customerId: { $in: users } }] });
   const payments = await ids(Payment, { $or: [{ orderId: { $in: orders } }, { shopId: { $in: shops } }, { customerId: { $in: users } }] });
   const sessions = await ids(UserSession, { userId: { $in: users } });
+  const resellers = await ids(Reseller, { userId: { $in: users } });
+  const listings = await ids(ResellerListing, { $or: [{ resellerId: { $in: resellers } }, { productId: { $in: products } }] });
   const targets = [...users, ...shops, ...products];
 
   // Files to delete from storage, gathered before the records that point to them disappear.
@@ -102,6 +105,10 @@ export async function removeDemoData({ dryRun = false } = {}): Promise<DemoRemov
     ['promotions', Promotion, { $or: [{ shopId: { $in: shops } }, { productId: { $in: products } }] }],
     ['subscriptions', SubscriptionEntitlement, { shopId: { $in: shops } }],
     ['image search data', ProductEmbedding, { $or: [{ shopId: { $in: shops } }, { productId: { $in: products } }] }],
+    ['reseller requests', ResellerRequest, { $or: [{ listingId: { $in: listings } }, { customerId: { $in: users } }] }],
+    ['reseller sales', ResellerSale, { resellerId: { $in: resellers } }],
+    ['reseller listings', ResellerListing, { _id: { $in: listings } }],
+    ['reseller accounts', Reseller, { _id: { $in: resellers } }],
     ['in-shop sales', ShopSale, { $or: [{ shopId: { $in: shops } }, { recordedBy: { $in: users } }] }],
     ['expenses', ShopExpense, { shopId: { $in: shops } }],
     ['inventory movements', InventoryMovement, { $or: [{ shopId: { $in: shops } }, { productId: { $in: products } }] }],

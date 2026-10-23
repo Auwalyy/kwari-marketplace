@@ -97,7 +97,9 @@ export function OrderCard({ order, onPress, sellerView }: { order: OrderDto; onP
             {first?.productName}
             {order.items.length > 1 ? ` + ${order.items.length - 1} more` : ''}
           </Text>
-          <Text className="mt-0.5 text-xs text-ink-500">{sellerView ? order.customer.fullName : order.shop.name} · {formatDate(order.createdAt)}</Text>
+          <Text className="mt-0.5 text-xs text-ink-500">
+            {sellerView ? (order.reseller ? `Reseller: ${order.reseller.businessName}` : order.customer.fullName) : order.shop.name} · {formatDate(order.createdAt)}
+          </Text>
           <View className="mt-1 flex-row items-center justify-between">
             <Text className="text-base font-bold text-ink-900">{formatNaira(order.totalKobo)}</Text>
             <PaymentStatusBadge status={order.paymentStatus} />

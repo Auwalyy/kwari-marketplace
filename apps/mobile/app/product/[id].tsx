@@ -5,12 +5,13 @@ import { Image } from 'expo-image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Heart, MessageCircle, MoreVertical, ShoppingCart, Store } from 'lucide-react-native';
 import { resolveUnitPrice, type ConversationDto, type ProductDto, type ReviewDto, type VisualSearchResponse } from '@kkdm/shared';
-import { ActionSheet, Body, Button, Card, Chip, ErrorState, IconButton, KeyValue, LoadingView, LocationBreadcrumbView, PriceLabel, QuantityStepper, Screen, SectionHeader, StockIndicator, VerificationBadge, WholesaleLine, toast, type SheetHandle } from '@/components/ui';
+import { ActionSheet, Body, Button, Card, Chip, ErrorState, IconButton, KeyValue, LoadingView, LocationBreadcrumbView, PriceLabel, QuantityStepper, Screen, SectionHeader, Sheet, StockIndicator, TextField, VerificationBadge, WholesaleLine, toast, type SheetHandle } from '@/components/ui';
+import { useAuth } from '@/store/auth';
 import { ProductCard } from '@/components/cards';
 import { colors } from '@/constants/theme';
 import { useAppConfig, useFavourites, useRequireAuth } from '@/hooks';
 import { api } from '@/lib/api';
-import { formatDate, formatNaira, formatQuantity, unitLabel } from '@/lib/format';
+import { formatDate, formatNaira, formatQuantity, nairaInputToKobo, unitLabel } from '@/lib/format';
 
 export default function ProductDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,6 +26,9 @@ export default function ProductDetails() {
   const [imageIndex, setImageIndex] = useState(0);
   const [variantId, setVariantId] = useState<string | undefined>();
   const [qty, setQty] = useState<number | null>(null);
+  const resellSheet = useRef<SheetHandle>(null);
+  const [resellPrice, setResellPrice] = useState('');
+  const isReseller = useAuth((s) => s.user?.reseller?.status === 'approved');
 
   const product = useQuery({ queryKey: ['product', id], queryFn: () => api.get<ProductDto>(`/products/${id}`) });
   const similar = useQuery({
@@ -41,8 +45,20 @@ export default function ProductDetails() {
     if (!p) return null;
     const retail = variant?.priceOverrideKobo ?? p.retailPriceKobo;
     const r = resolveUnitPrice({ retailPriceKobo: retail, wholesalePriceKobo: p.wholesalePriceKobo, wholesaleMinQuantity: p.wholesaleMinQuantity }, quantity);
-    return { ...r, total: Math.round((r.unitPriceKobo * Math.round(quantity * 100)) / 100) };
-  }, [p, variant, quantity]);
+    // Approved resellers are charged the reseller price in the cart; show the same figure here.
+    const reseller = isReseller && p.resellerPriceKobo != null && p.resellerPriceKobo < r.unitPriceKobo;
+    const unitPriceKobo = reseller ? p.resellerPriceKobo! : r.unitPriceKobo;
+    return { unitPriceKobo, wholesale: r.wholesale && !reseller, reseller, total: Math.round((unitPriceKobo * Math.round(quantity * 100)) / 100) };
+  }, [p, variant, quantity, isReseller]);
+  const resell = useMutation({
+    mutationFn: () => api.post('/resellers/me/listings', { productId: id, priceKobo: nairaInputToKobo(resellPrice) }),
+    onSuccess: () => {
+      resellSheet.current?.close();
+      void qc.invalidateQueries({ queryKey: ['reseller'] });
+      toast.success('Added to your products — customers see it under your name');
+    },
+    onError: (e) => toast.apiError(e),
+  });
 
   const addToCart = useMutation({
     mutationFn: () => api.post('/cart/items', { productId: id, variantId: variantId ?? null, quantity }),
@@ -85,6 +101,7 @@ export default function ProductDetails() {
                 <Text className="text-sm text-ink-600">
                   {formatQuantity(quantity, prod.unit)} × {formatNaira(pricing.unitPriceKobo)}
                   {pricing.wholesale ? ' (wholesale)' : ''}
+                  {pricing.reseller ? ' (your reseller price)' : ''}
                 </Text>
                 <Text className="text-lg font-bold text-ink-900">{formatNaira(pricing.total)}</Text>
               </View>
@@ -130,6 +147,26 @@ export default function ProductDetails() {
           <StockIndicator status={prod.stockStatus} />
         </View>
         <WholesaleLine priceKobo={prod.wholesalePriceKobo} minQty={prod.wholesaleMinQuantity} unit={prod.unit} />
+        {isReseller && prod.resellerPriceKobo != null ? (
+          <View className="mt-3 rounded-2xl border border-gold-500 bg-gold-100 p-3">
+            <Text className="text-xs font-semibold uppercase tracking-wide text-gold-700">Reseller price · only you see this</Text>
+            <Text className="mt-0.5 text-xl font-bold text-ink-900">
+              {formatNaira(prod.resellerPriceKobo)}
+              <Text className="text-sm font-normal text-ink-600"> / {unitLabel(prod.unit)}</Text>
+            </Text>
+            <Text className="text-xs text-ink-600">Add it to your products at your own price, or order it here at this price for your customer.</Text>
+            <Button
+              title="Add to my products"
+              size="sm"
+              className="mt-2 self-start"
+              onPress={() => {
+                // Suggest about 15% on top, rounded to ₦50.
+                setResellPrice(String(Math.ceil((prod.resellerPriceKobo! * 1.15) / 5000) * 50));
+                resellSheet.current?.open();
+              }}
+            />
+          </View>
+        ) : null}
         {prod.minOrderQuantity > 1 ? <Text className="mt-1 text-xs text-ink-500">Minimum order {formatQuantity(prod.minOrderQuantity, prod.unit)}</Text> : null}
 
         {prod.variants.length ? (
@@ -212,6 +249,22 @@ export default function ProductDetails() {
         ref={menu}
         actions={[{ label: 'Report this product', onPress: () => requireAuth(() => router.push({ pathname: '/report', params: { targetType: 'product', targetId: prod.id, label: prod.name } })) }]}
       />
+      <Sheet ref={resellSheet} title="Add to my products" snapPoints={['60%']}>
+        {prod.resellerPriceKobo != null ? (
+          <View>
+            <Text className="mb-3 text-sm text-ink-600">
+              You pay {formatNaira(prod.resellerPriceKobo)} per {unitLabel(prod.unit)}. Customers will see your price and your name — not this shop.
+            </Text>
+            <TextField label={`Your selling price per ${unitLabel(prod.unit)} (₦)`} keyboardType="numeric" value={resellPrice} onChangeText={setResellPrice} hint={(() => {
+              const k = nairaInputToKobo(resellPrice);
+              if (k == null) return undefined;
+              const profit = k - prod.resellerPriceKobo!;
+              return profit >= 0 ? `You make ${formatNaira(profit)} on each ${unitLabel(prod.unit)}` : 'Your price must not be below the reseller price';
+            })()} />
+            <Button title="Add to my products" fullWidth loading={resell.isPending} disabled={(nairaInputToKobo(resellPrice) ?? 0) < prod.resellerPriceKobo} onPress={() => resell.mutate()} />
+          </View>
+        ) : null}
+      </Sheet>
     </Screen>
   );
 }

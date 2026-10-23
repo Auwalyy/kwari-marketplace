@@ -61,6 +61,7 @@ const orderItemSchema = new Schema({
   quantity: { type: Number, required: true },
   unitPriceKobo: { type: Number, required: true },
   wholesaleApplied: { type: Boolean, default: false },
+  resellerPriceApplied: { type: Boolean, default: false },
   lineTotalKobo: { type: Number, required: true },
   stockTracked: { type: Boolean, default: true },
 });
@@ -94,6 +95,8 @@ const orderSchema = new Schema(
     totalKobo: { type: Number, required: true },
     note: String,
     quotationId: { type: Schema.Types.ObjectId, ref: 'Quotation', default: null },
+    /** Set when an approved reseller bought at the reseller price (they resell to their own customer). */
+    resellerId: { type: Schema.Types.ObjectId, ref: 'Reseller', default: null },
     events: { type: [orderEventSchema], default: [] },
     /** Set once reserved stock has been returned, so restoration can never happen twice. */
     stockReleasedAt: { type: Date, default: null },

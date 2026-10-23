@@ -16,6 +16,7 @@ export default function TabsLayout() {
   const chatBadge = unread.customerChats + unread.shopChatsTotal;
   // Sellers get their own tab; everyone else never sees it.
   const hasShop = useAuth((s) => (s.user?.shops.length ?? 0) > 0);
+  const isReseller = useAuth((s) => s.user?.reseller?.status === 'approved');
   // The bar grows by the device's bottom inset (iPhone home indicator, Android gesture bar) so labels
   // are never hidden behind it. A fixed height would clip them on notched devices.
   const insets = useSafeAreaInsets();
@@ -52,7 +53,7 @@ export default function TabsLayout() {
         options={{ title: 'Cart', tabBarIcon: ({ color }) => <ShoppingCart size={22} color={color} />, tabBarBadge: cart.data?.itemCount || undefined }}
       />
       <Tabs.Screen name="inbox" options={{ title: 'Chats', tabBarIcon: ({ color }) => <MessageCircle size={22} color={color} />, tabBarBadge: chatBadge || undefined }} />
-      <Tabs.Screen name="shop" options={{ title: 'My shop', href: hasShop ? undefined : null, tabBarIcon: ({ color }) => <BriefcaseBusiness size={22} color={color} /> }} />
+      <Tabs.Screen name="shop" options={{ title: hasShop ? 'My shop' : 'Reselling', href: hasShop || isReseller ? undefined : null, tabBarIcon: ({ color }) => <BriefcaseBusiness size={22} color={color} /> }} />
       <Tabs.Screen name="account" options={{ title: 'Account', tabBarIcon: ({ color }) => <UserRound size={22} color={color} /> }} />
     </Tabs>
   );

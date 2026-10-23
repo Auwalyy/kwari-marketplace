@@ -12,6 +12,7 @@ import {
   SALE_PAYMENT_METHODS,
   EXPENSE_CATEGORIES,
   BOOKS_PERIODS,
+  RESELLER_REQUEST_STATUSES,
   PROMOTION_TYPES,
   NOTIFICATION_PREFERENCE_GROUPS,
 } from './constants';
@@ -295,6 +296,8 @@ const productBase = z.object({
   wholesaleMinQuantity: quantity.optional().nullable(),
   /** What one unit cost the shop. Private to the owner and staff with finance access. */
   costPriceKobo: priceKobo.optional().nullable(),
+  /** Price for approved resellers only. Leave empty to keep the product out of reselling. */
+  resellerPriceKobo: priceKobo.optional().nullable(),
   minOrderQuantity: quantity.min(0.01).default(1),
   unit: z.enum(MEASUREMENT_UNITS),
   stockQuantity: quantity.default(0),
@@ -309,7 +312,7 @@ const productBase = z.object({
   status: z.enum(PRODUCT_STATUSES).default('draft'),
 });
 
-function refineWholesale<T extends z.ZodType<{ wholesalePriceKobo?: number | null; wholesaleMinQuantity?: number | null; retailPriceKobo?: number }>>(s: T) {
+function refineWholesale<T extends z.ZodType<{ wholesalePriceKobo?: number | null; wholesaleMinQuantity?: number | null; retailPriceKobo?: number; resellerPriceKobo?: number | null }>>(s: T) {
   return s.superRefine((v, ctx) => {
     const hasPrice = v.wholesalePriceKobo != null;
     const hasMin = v.wholesaleMinQuantity != null;
@@ -318,6 +321,9 @@ function refineWholesale<T extends z.ZodType<{ wholesalePriceKobo?: number | nul
     }
     if (hasPrice && v.retailPriceKobo != null && v.wholesalePriceKobo! > v.retailPriceKobo) {
       ctx.addIssue({ code: 'custom', path: ['wholesalePriceKobo'], message: 'Wholesale price should not exceed the retail price' });
+    }
+    if (v.resellerPriceKobo != null && v.retailPriceKobo != null && v.resellerPriceKobo > v.retailPriceKobo) {
+      ctx.addIssue({ code: 'custom', path: ['resellerPriceKobo'], message: 'The reseller price should be below your retail price, so resellers can add their profit' });
     }
   });
 }
@@ -402,6 +408,65 @@ export const salesListSchema = z.object({
     .optional(),
   q: z.string().trim().max(80).optional(),
 });
+
+/* Resellers ------------------------------------------------------------------------------------ */
+
+export const resellerApplySchema = z.object({
+  businessName: z.string().trim().min(2, 'Enter the name customers know you by').max(80),
+  phone: z.string().trim().min(7, 'Enter a phone number customers can call').max(20),
+  whatsapp: optionalText(20),
+  area: optionalText(80),
+  about: optionalText(500),
+});
+export const resellerProfileUpdateSchema = resellerApplySchema.partial();
+
+export const resellerListingCreateSchema = z.object({
+  productId: objectId,
+  /** What the reseller's customers pay per unit. Must not be below the shop's reseller price. */
+  priceKobo: priceKobo.min(1, 'Enter your selling price'),
+  note: optionalText(300),
+});
+export const resellerListingUpdateSchema = z.object({
+  priceKobo: priceKobo.min(1).optional(),
+  note: optionalText(300),
+  status: z.enum(['active', 'paused']).optional(),
+});
+
+export const resellerRequestSchema = z.object({
+  quantity: quantity.min(0.01, 'How many do you want?'),
+  note: optionalText(500),
+  phone: optionalText(20),
+});
+export const resellerRequestStatusSchema = z.object({ status: z.enum(RESELLER_REQUEST_STATUSES) });
+
+export const resellerDecisionSchema = z.object({
+  decision: z.enum(['approve', 'reject', 'suspend']),
+  reason: optionalText(300),
+});
+
+export const resellerSaleCreateSchema = z
+  .object({
+    /** One of the reseller's listings; price and cost come from it. Leave out for something else. */
+    listingId: objectId.optional(),
+    name: optionalText(140),
+    unit: z.enum(MEASUREMENT_UNITS).optional(),
+    quantity: quantity.min(0.01),
+    /** Defaults to the listing's price. */
+    unitPriceKobo: priceKobo.optional(),
+    /** What one unit cost the reseller; defaults to the shop's reseller price. */
+    unitCostKobo: priceKobo.optional(),
+    amountPaidKobo: priceKobo.optional(),
+    paymentMethod: z.enum(SALE_PAYMENT_METHODS).default('cash'),
+    customerName: optionalText(80),
+    customerPhone: optionalText(20),
+    soldAt: z.coerce.date().optional(),
+    note: optionalText(300),
+    /** Marks the customer's in-app request as completed. */
+    requestId: objectId.optional(),
+    clientRef: z.string().trim().max(64).optional(),
+  })
+  .refine((v) => !!v.listingId || (!!v.name && v.unitPriceKobo != null), { message: 'Choose one of your products, or enter a name and price', path: ['name'] });
+export type ResellerSaleCreateInput = z.infer<typeof resellerSaleCreateSchema>;
 
 export const expensesListSchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).default(1),

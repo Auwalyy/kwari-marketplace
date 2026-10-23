@@ -105,6 +105,11 @@ export function OrderDetail({ orderId, shopId }: { orderId: string; shopId?: str
 
   return (
     <Screen title={o.reference} subtitle={seller ? o.customer.fullName : o.shop.name} onRefresh={() => { void q.refetch(); void payments.refetch(); }} refreshing={q.isRefetching}>
+      {seller && o.reseller ? (
+        <Notice tone="info" title="Reseller order">
+          {o.reseller.businessName} is an approved reseller. They bought at your reseller price to sell on to their own customer.
+        </Notice>
+      ) : null}
       <Card className="mb-3">
         <View className="flex-row items-center justify-between">
           <OrderStatusBadge status={o.status} />

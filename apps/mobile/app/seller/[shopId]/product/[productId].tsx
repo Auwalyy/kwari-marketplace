@@ -45,8 +45,8 @@ export default function ProductEditor() {
   const product = useQuery({ queryKey: ['seller-product', productId], queryFn: () => api.get<ProductDto & { moderationStatus: string; moderationReason?: string }>(`/shops/${shopId}/products/${productId}`), enabled: !isNew });
   const [f, setF] = useDerivedState(
     product.data,
-    (p) => ({ name: p.name, description: p.description ?? '', categoryId: p.categoryId, subcategory: p.subcategory ?? '', retail: koboToNairaInput(p.retailPriceKobo), wholesale: koboToNairaInput(p.wholesalePriceKobo), wholesaleMin: p.wholesaleMinQuantity ? String(p.wholesaleMinQuantity) : '', cost: koboToNairaInput(p.costPriceKobo), minOrder: String(p.minOrderQuantity), unit: p.unit, stock: String(p.stockQuantity), lowStock: String(p.lowStockThreshold), trackInventory: p.trackInventory, material: p.material ?? '', brand: p.brand ?? '', colours: p.colours.join(', '), patterns: p.patterns.join(', '), keywords: p.keywords.join(', ') }),
-    { name: '', description: '', categoryId: '', subcategory: '', retail: '', wholesale: '', wholesaleMin: '', cost: '', minOrder: '1', unit: 'yard' as MeasurementUnit, stock: '0', lowStock: '5', trackInventory: true, material: '', brand: '', colours: '', patterns: '', keywords: '' },
+    (p) => ({ name: p.name, description: p.description ?? '', categoryId: p.categoryId, subcategory: p.subcategory ?? '', retail: koboToNairaInput(p.retailPriceKobo), wholesale: koboToNairaInput(p.wholesalePriceKobo), wholesaleMin: p.wholesaleMinQuantity ? String(p.wholesaleMinQuantity) : '', cost: koboToNairaInput(p.costPriceKobo), reseller: koboToNairaInput(p.resellerPriceKobo), minOrder: String(p.minOrderQuantity), unit: p.unit, stock: String(p.stockQuantity), lowStock: String(p.lowStockThreshold), trackInventory: p.trackInventory, material: p.material ?? '', brand: p.brand ?? '', colours: p.colours.join(', '), patterns: p.patterns.join(', '), keywords: p.keywords.join(', ') }),
+    { name: '', description: '', categoryId: '', subcategory: '', retail: '', wholesale: '', wholesaleMin: '', cost: '', reseller: '', minOrder: '1', unit: 'yard' as MeasurementUnit, stock: '0', lowStock: '5', trackInventory: true, material: '', brand: '', colours: '', patterns: '', keywords: '' },
   );
   const [variants, setVariants] = useDerivedState<ProductDto, VariantForm[]>(product.data, (p) => p.variants.map((v) => ({ id: v.id, label: v.label, colour: v.colour ?? '', priceOverride: koboToNairaInput(v.priceOverrideKobo), stock: String(v.stockQuantity), active: v.active })), []);
   const [newImages, setNewImages] = useState<{ key: string; uri: string; name: string; type: string }[]>([]);
@@ -62,6 +62,7 @@ export default function ProductEditor() {
     wholesalePriceKobo: f.wholesale ? nairaInputToKobo(f.wholesale) : null,
     wholesaleMinQuantity: f.wholesaleMin ? Number(f.wholesaleMin) : null,
     ...(finance ? { costPriceKobo: f.cost ? nairaInputToKobo(f.cost) : null } : {}),
+    resellerPriceKobo: f.reseller ? nairaInputToKobo(f.reseller) : null,
     minOrderQuantity: Number(f.minOrder) || 1,
     unit: f.unit,
     ...(isNew ? { stockQuantity: Number(f.stock) || 0 } : {}),
@@ -180,6 +181,14 @@ export default function ProductEditor() {
           hint={profitHint(f.retail, f.cost, UNIT_LABELS[f.unit].singular)}
         />
       ) : null}
+      <TextField
+        label={`Reseller price per ${UNIT_LABELS[f.unit].singular} (₦, optional)`}
+        keyboardType="numeric"
+        value={f.reseller}
+        onChangeText={(t) => setF((x) => ({ ...x, reseller: t }))}
+        error={errors.resellerPriceKobo}
+        hint="Only approved resellers see this price. They resell at their own price and bring you extra customers. Leave empty to keep this product out of reselling."
+      />
       <TextField label="Minimum order quantity" keyboardType="decimal-pad" value={f.minOrder} onChangeText={(t) => setF((x) => ({ ...x, minOrder: t }))} />
 
       <SectionHeader title="Stock" />

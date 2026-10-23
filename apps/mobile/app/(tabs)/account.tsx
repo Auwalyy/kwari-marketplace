@@ -14,6 +14,8 @@ import {
   LogOut,
   MapPin,
   Plus,
+  Handshake,
+  Pencil,
   Settings,
   Shield,
   ShieldCheck,
@@ -96,6 +98,32 @@ export default function Account() {
         ))}
         <ListItem icon={Plus} title="Register a physical shop" subtitle="Requires an invitation code from your house head" onPress={() => router.push('/seller/register')} />
         <ListItem icon={UserPlus} title="Join a shop as a worker" subtitle="Enter the code from the shop owner" onPress={() => router.push('/seller/join')} />
+      </Group>
+
+      <Group title="Reselling">
+        {!user.reseller ? (
+          <ListItem icon={Handshake} title="Become a reseller" subtitle="Resell shops’ fabric at your own price — no shop needed" onPress={() => router.push('/reseller/apply')} />
+        ) : user.reseller.status === 'approved' ? (
+          <>
+            <ListItem
+              icon={Handshake}
+              title={user.reseller.businessName}
+              subtitle="Open my reselling"
+              onPress={() => {
+                selectShop('reseller');
+                router.push('/(tabs)/shop');
+              }}
+            />
+            <ListItem icon={Pencil} title="My reseller profile" onPress={() => router.push('/reseller/apply')} />
+          </>
+        ) : (
+          <ListItem
+            icon={Handshake}
+            title="Reseller application"
+            subtitle={user.reseller.status === 'pending' ? 'Being reviewed' : user.reseller.status === 'rejected' ? 'Not approved — tap to see why' : 'Suspended'}
+            onPress={() => router.push('/reseller/apply')}
+          />
+        )}
       </Group>
 
       <Group title="House management">

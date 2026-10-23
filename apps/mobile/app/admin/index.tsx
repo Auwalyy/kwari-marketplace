@@ -9,6 +9,7 @@ import {
   CreditCard,
   FileSearch,
   Gavel,
+  Handshake,
   KeyRound,
   Layers,
   Map,
@@ -89,6 +90,7 @@ export default function AdminDashboard() {
         {isAdmin ? (
           <>
             <ListItem icon={Users} title="Users & roles" onPress={go('users')} />
+            <ListItem icon={Handshake} title="Resellers" subtitle="Applications and approved resellers" onPress={go('resellers')} />
             <ListItem icon={CreditCard} title="Payments & refunds" onPress={go('payments')} />
             <ListItem icon={Layers} title="Categories" onPress={go('categories')} />
             <ListItem icon={Megaphone} title="Promotions & announcements" onPress={go('promotions')} />

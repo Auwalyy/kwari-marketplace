@@ -5,6 +5,7 @@ import { Product } from '../products/product.models';
 import { isPubliclyVisible } from '../products/product.service';
 import { Shop } from '../shops/shop.models';
 import { toShopSummaries } from '../shops/shop.service';
+import { approvedReseller } from '../resellers/reseller.access';
 
 export interface PricedLine {
   lineId: string;
@@ -18,6 +19,7 @@ export interface PricedLine {
   quantity: number;
   unitPriceKobo: number;
   wholesaleApplied: boolean;
+  resellerApplied: boolean;
   lineTotalKobo: number;
   trackInventory: boolean;
   available: boolean;
@@ -27,9 +29,13 @@ export interface PricedLine {
 
 /**
  * Prices cart lines entirely from server data. Accepted, unexpired quotations lock the negotiated unit
- * price; otherwise retail / wholesale tiers (and variant price overrides) apply.
+ * price; otherwise retail / wholesale tiers (and variant price overrides) apply. Approved resellers pay
+ * the shop's reseller price when it is lower.
  */
-export async function priceCartItems(items: { _id?: unknown; productId: unknown; variantId?: unknown; shopId: unknown; quantity: number; quotationId?: unknown; quotationItemId?: unknown }[]): Promise<PricedLine[]> {
+export async function priceCartItems(
+  items: { _id?: unknown; productId: unknown; variantId?: unknown; shopId: unknown; quantity: number; quotationId?: unknown; quotationItemId?: unknown }[],
+  opts: { reseller?: boolean } = {},
+): Promise<PricedLine[]> {
   const products = await Product.find({ _id: { $in: items.map((i) => i.productId) } }).lean();
   const shops = await Shop.find({ _id: { $in: items.map((i) => i.shopId) } }).select('status').lean();
   const quotationIds = items.map((i) => i.quotationId).filter(Boolean);
@@ -47,11 +53,17 @@ export async function priceCartItems(items: { _id?: unknown; productId: unknown;
 
     let unitPriceKobo = 0;
     let wholesaleApplied = false;
+    let resellerApplied = false;
     if (p) {
       const retail = variant?.priceOverrideKobo ?? p.retailPriceKobo;
       const r = resolveUnitPrice({ retailPriceKobo: retail, wholesalePriceKobo: p.wholesalePriceKobo, wholesaleMinQuantity: p.wholesaleMinQuantity }, item.quantity);
       unitPriceKobo = r.unitPriceKobo;
       wholesaleApplied = r.wholesale;
+      if (opts.reseller && p.resellerPriceKobo != null && p.resellerPriceKobo < unitPriceKobo) {
+        unitPriceKobo = p.resellerPriceKobo;
+        wholesaleApplied = false;
+        resellerApplied = true;
+      }
       if (!issue && item.quantity < (p.minOrderQuantity ?? 0)) issue = `Minimum order is ${p.minOrderQuantity} ${p.unit}`;
       const stock = variant ? variant.stockQuantity : p.stockQuantity;
       if (!issue && p.trackInventory !== false && stock < item.quantity) issue = stock > 0 ? `Only ${stock} ${p.unit} left in stock` : 'Out of stock';
@@ -64,6 +76,7 @@ export async function priceCartItems(items: { _id?: unknown; productId: unknown;
       else {
         unitPriceKobo = qi.offeredUnitPriceKobo;
         wholesaleApplied = false;
+        resellerApplied = false;
       }
     }
     const cover = p ? [...p.images].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))[0] : undefined;
@@ -79,6 +92,7 @@ export async function priceCartItems(items: { _id?: unknown; productId: unknown;
       quantity: item.quantity,
       unitPriceKobo,
       wholesaleApplied,
+      resellerApplied,
       lineTotalKobo: lineTotalKobo(unitPriceKobo, item.quantity),
       trackInventory: p?.trackInventory !== false,
       available: !issue,
@@ -92,7 +106,7 @@ export async function buildCartDto(userId: string): Promise<CartDto> {
   const cart = await Cart.findOne({ userId }).lean();
   const items = cart?.items ?? [];
   if (!items.length) return { groups: [], itemCount: 0, subtotalKobo: 0 };
-  const priced = await priceCartItems(items as any);
+  const priced = await priceCartItems(items as any, { reseller: !!(await approvedReseller(userId)) });
   const shops = await Shop.find({ _id: { $in: [...new Set(priced.map((l) => l.shopId))] } }).lean();
   const summaries = await toShopSummaries(shops as any);
   const groups = shops.map((shop) => {
@@ -109,6 +123,7 @@ export async function buildCartDto(userId: string): Promise<CartDto> {
         quantity: l.quantity,
         unitPriceKobo: l.unitPriceKobo,
         wholesaleApplied: l.wholesaleApplied,
+        resellerApplied: l.resellerApplied,
         lineTotalKobo: l.lineTotalKobo,
         available: l.available,
         issue: l.issue,
